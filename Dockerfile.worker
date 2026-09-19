@@ -48,7 +48,6 @@ RUN mkdir -p /home/bun/.codex /home/bun/.config/gh /var/lib/minisago /workspace/
   && chown -R bun:bun /home/bun/.codex /home/bun/.config /var/lib/minisago /workspace \
   && chmod 700 /home/bun/.config/gh /workspace /workspace/worktrees
 
-ENV MINISAGO_HEADLESS=true
 ENV HOME=/home/bun
 ENV MINISAGO_CODEX_HOME=/home/bun/.codex
 ENV MINISAGO_CODEX_PATH=/usr/local/bin/codex

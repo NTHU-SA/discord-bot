@@ -71,7 +71,7 @@ export function parseExecutionRoute(
       threadTitle?: unknown;
     };
     if (
-      ["chat", "mac", "oracle", "unclear"].includes(payload.route as string)
+      ["chat", "oracle", "unclear"].includes(payload.route as string)
     ) {
       const route = payload.route as ChatbotExecutionRoute | "unclear";
       const repository =

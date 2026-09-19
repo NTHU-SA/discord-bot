@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  configuredSkillbookRepository,
   deploySocketPath,
-  macFileRoots,
   parseGitHubRepositories,
   validateBridgeUrl,
   validateMcpUrl,
@@ -11,15 +9,6 @@ import {
 } from "./config";
 
 describe("worker configuration", () => {
-  test("syncs Skillbook on Oracle without managing Mac skills", () => {
-    expect(configuredSkillbookRepository(true, undefined)).toBe(
-      "sago-cream/skillbook",
-    );
-    expect(configuredSkillbookRepository(false, undefined)).toBeUndefined();
-    expect(configuredSkillbookRepository(false, "owner/skillbook")).toBe(
-      "owner/skillbook",
-    );
-  });
 
   test("accepts only an absolute deployment socket path", () => {
     expect(deploySocketPath("/run/sago-cloud/deploy.sock")).toBe(
@@ -35,16 +24,6 @@ describe("worker configuration", () => {
         "Hsiii/mini-sago\nsago-cream/mini-sago\ninvalid\nHsiii/mini-sago\n",
       ),
     ).toEqual(["Hsiii/mini-sago", "sago-cream/mini-sago"]);
-  });
-
-  test("limits default Mac file access to common user folders", () => {
-    expect(macFileRoots(undefined, "/Users/hsi")).toContain(
-      "/Users/hsi/Documents",
-    );
-    expect(macFileRoots(undefined, "/Users/hsi")).not.toContain("/Users/hsi");
-    expect(
-      macFileRoots("/Volumes/Work:/Users/hsi/Desktop", "/Users/hsi"),
-    ).toEqual(["/Volumes/Work", "/Users/hsi/Desktop"]);
   });
 
   test("allows plaintext bridge traffic only for local hostnames", () => {

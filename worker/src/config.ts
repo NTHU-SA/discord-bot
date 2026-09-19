@@ -8,7 +8,7 @@ import {
   type ChatbotAccessConfig,
 } from "../../src/chatbot/access";
 
-export type MacAgentConfig = {
+export type WorkerConfig = {
   bridgeUrl: string;
   bridgeSecret: string;
   codexHome: string;
@@ -20,13 +20,8 @@ export type MacAgentConfig = {
   chatbotAccess: ChatbotAccessConfig;
   githubWorktreeRoot: string;
   maxConcurrentJobs: number;
-  macFileRoots: string[];
   mcpUrl: string;
   sandboxUrl: string;
-  headless: boolean;
-  sessionMonitorPath: string;
-  skillbookRepository?: string;
-  skillbookSyncIntervalMs: number;
   traceDatabasePath: string;
   workspaceRoot: string;
   workerId: string;
@@ -38,28 +33,6 @@ const defaultApplicationSupport =
     ? join(homedir(), "Library", "Application Support", "MiniSago")
     : join(homedir(), ".local", "state", "minisago");
 
-export function macFileRoots(
-  configured = process.env.MINISAGO_MAC_FILE_ROOTS,
-  home = homedir(),
-) {
-  const defaults = [
-    "Desktop",
-    "Documents",
-    "Downloads",
-    "Movies",
-    "Music",
-    "Pictures",
-    join("Library", "Mobile Documents", "com~apple~CloudDocs"),
-  ].map((path) => join(home, path));
-  const candidates = configured?.trim()
-    ? configured.split(":").map((path) => path.trim())
-    : defaults;
-
-  return [
-    ...new Set(candidates.filter(isAbsolute).map((path) => resolve(path))),
-  ];
-}
-
 export function deploySocketPath(
   configured = process.env.MINISAGO_DEPLOY_SOCKET,
 ) {
@@ -69,13 +42,6 @@ export function deploySocketPath(
     throw new Error("MINISAGO_DEPLOY_SOCKET must be an absolute path.");
   }
   return resolve(path);
-}
-
-export function configuredSkillbookRepository(
-  headless: boolean,
-  configured = process.env.MINISAGO_SKILLBOOK_REPOSITORY,
-) {
-  return configured?.trim() || (headless ? "sago-cream/skillbook" : undefined);
 }
 
 async function isExecutable(path: string) {
@@ -207,21 +173,18 @@ export function workspaceChild(root: string, candidate: string, name: string) {
   return absoluteCandidate;
 }
 
-export async function loadMacAgentConfig(
+export async function loadWorkerConfig(
   discoverRepositories = discoverGitHubRepositories,
-): Promise<MacAgentConfig> {
+): Promise<WorkerConfig> {
   const chatbotAccess = getChatbotAccessConfig();
-  const bridgeSecret = process.env.MINISAGO_MAC_BRIDGE_SECRET?.trim();
+  const bridgeSecret = process.env.MINISAGO_WORKER_BRIDGE_SECRET?.trim();
 
   if (!bridgeSecret || Buffer.byteLength(bridgeSecret) < 32) {
     throw new Error(
-      "MINISAGO_MAC_BRIDGE_SECRET must contain at least 32 bytes.",
+      "MINISAGO_WORKER_BRIDGE_SECRET must contain at least 32 bytes.",
     );
   }
-
-  const headless =
-    process.env.MINISAGO_HEADLESS === "true" || process.platform !== "darwin";
-  const defaultWorkerId = `${headless ? "cloud" : "mac"}-${hostname()}`
+  const defaultWorkerId = `linux-${hostname()}`
     .toLowerCase()
     .replace(/[^a-z0-9._-]/g, "-")
     .slice(0, 64);
@@ -265,8 +228,7 @@ export async function loadMacAgentConfig(
   );
 
   const bridgeUrl = validateBridgeUrl(
-    process.env.MINISAGO_BRIDGE_URL?.trim() ||
-      "wss://bot.hsichen.dev/api/mac-agent/ws",
+    process.env.MINISAGO_BRIDGE_URL?.trim() || "ws://core:3000/api/worker/ws",
   );
 
   return {
@@ -282,7 +244,6 @@ export async function loadMacAgentConfig(
     chatbotRepository,
     chatbotAccess,
     githubWorktreeRoot,
-    headless,
     maxConcurrentJobs: Math.max(
       1,
       Math.min(
@@ -291,23 +252,11 @@ export async function loadMacAgentConfig(
           2,
       ),
     ),
-    macFileRoots: macFileRoots(),
     mcpUrl: validateMcpUrl(
       process.env.MINISAGO_MCP_URL?.trim() || defaultMcpUrl(bridgeUrl),
     ),
     sandboxUrl: validateMcpUrl(
       process.env.MINISAGO_SANDBOX_URL?.trim() || "http://sandbox:8080",
-    ),
-    sessionMonitorPath:
-      process.env.MINISAGO_SESSION_MONITOR_PATH?.trim() ||
-      join(defaultApplicationSupport, "bin", "session-monitor"),
-    skillbookRepository: configuredSkillbookRepository(headless),
-    skillbookSyncIntervalMs: Math.max(
-      60_000,
-      Number.parseInt(
-        process.env.MINISAGO_SKILLBOOK_SYNC_INTERVAL_MS || "900000",
-        10,
-      ) || 900_000,
     ),
     traceDatabasePath:
       process.env.MINISAGO_TRACE_DATABASE_PATH?.trim() ||

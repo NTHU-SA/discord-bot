@@ -5,9 +5,7 @@ import {
   ANSWER_TASK_INSTRUCTION,
   buildAnswerDeveloperInstructions,
   CODEX_THREAD_TASK_INSTRUCTION,
-  MAC_FILE_ANSWER_OUTPUT_SCHEMA,
   PROMPT_VERSION,
-  VOICE_ANSWER_OUTPUT_SCHEMA,
 } from "./answer";
 import { answerContext } from "./context";
 import {
@@ -26,9 +24,7 @@ import {
 export {
   ARTIFACT_ANSWER_OUTPUT_SCHEMA,
   ANSWER_OUTPUT_SCHEMA,
-  MAC_FILE_ANSWER_OUTPUT_SCHEMA,
   PROMPT_VERSION,
-  VOICE_ANSWER_OUTPUT_SCHEMA,
 } from "./answer";
 export { EXECUTION_ROUTE_OUTPUT_SCHEMA } from "./execution-route";
 export { SOCIAL_ACTION_OUTPUT_SCHEMA } from "./social-action";
@@ -79,7 +75,6 @@ export function buildPromptPlan(
   attachmentText: string[],
   ignoredAttachments: string[],
   developerPolicy?: string,
-  macFileRoots: string[] = [],
 ): PromptPlan {
   if (job.purpose === "execution_route") {
     return promptPlan(
@@ -99,7 +94,7 @@ export function buildPromptPlan(
   }
   return promptPlan(
     "answer",
-    buildAnswerDeveloperInstructions(job, developerPolicy, macFileRoots),
+    buildAnswerDeveloperInstructions(job, developerPolicy),
     job.developerTask ? CODEX_THREAD_TASK_INSTRUCTION : ANSWER_TASK_INSTRUCTION,
     answerContext(job, attachmentText, ignoredAttachments),
   );
@@ -110,14 +105,12 @@ export function buildCodexPrompt(
   attachmentText: string[],
   ignoredAttachments: string[],
   developerPolicy?: string,
-  macFileRoots: string[] = [],
 ) {
   const plan = buildPromptPlan(
     job,
     attachmentText,
     ignoredAttachments,
     developerPolicy,
-    macFileRoots,
   );
   return [plan.developerInstructions, plan.taskInstruction, plan.context].join(
     "\n\n",
@@ -129,8 +122,6 @@ export function outputSchemaForJob(job: CodexJob) {
   if (job.purpose === "social_action") return SOCIAL_ACTION_OUTPUT_SCHEMA;
   if (job.purpose === "answer") {
     if (job.developerTask) return undefined;
-    if (job.streamReply) return VOICE_ANSWER_OUTPUT_SCHEMA;
-    if (job.executionRoute === "mac") return MAC_FILE_ANSWER_OUTPUT_SCHEMA;
     return job.executionRoute === "oracle"
       ? ANSWER_OUTPUT_SCHEMA
       : ARTIFACT_ANSWER_OUTPUT_SCHEMA;

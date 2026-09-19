@@ -1,12 +1,12 @@
 export type ChatbotAccessTier = "community" | "owner";
-export type ChatbotAccessCapability = "chat" | "dev" | "mac";
+export type ChatbotAccessCapability = "chat" | "dev";
 
 const CAPABILITIES_BY_TIER: Record<
   ChatbotAccessTier,
   ReadonlySet<ChatbotAccessCapability>
 > = {
   community: new Set(["chat"]),
-  owner: new Set(["chat", "dev", "mac"]),
+  owner: new Set(["chat", "dev"]),
 };
 
 export type ChatbotAccessConfig = {

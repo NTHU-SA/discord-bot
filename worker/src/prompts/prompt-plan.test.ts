@@ -197,7 +197,7 @@ describe("prompt plan", () => {
       "Owner-only host tools still run in chat",
     );
     expect(plan.developerInstructions).toContain(
-      "If neither Mac nor Oracle is clearly required, choose chat",
+      "If Oracle is not clearly required, choose chat",
     );
   });
 

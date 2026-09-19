@@ -56,19 +56,6 @@ function inside(root: string, candidate: string) {
   );
 }
 
-export function requestedFilePaths(content: string) {
-  try {
-    const value = JSON.parse(content) as Record<string, unknown>;
-    const files = Array.isArray(value.files)
-      ? value.files.filter((path): path is string => typeof path === "string")
-      : [];
-    delete value.files;
-    return { content: JSON.stringify(value), files: files.slice(0, 1) };
-  } catch {
-    return { content, files: [] };
-  }
-}
-
 export function requestedArtifactIds(content: string) {
   try {
     const value = JSON.parse(content) as Record<string, unknown>;
@@ -105,32 +92,6 @@ async function readOutgoingFile(path: string): Promise<ChatbotOutgoingFile> {
     size: bytes.byteLength,
     data: bytes.toString("base64"),
   };
-}
-
-export async function prepareOutgoingFiles(
-  content: string,
-  allowedRoots: string[],
-): Promise<{ content: string; files: ChatbotOutgoingFile[] }> {
-  const requested = requestedFilePaths(content);
-  const roots = await Promise.all(
-    allowedRoots.map((root) => realpath(root).catch(() => resolve(root))),
-  );
-  const files: ChatbotOutgoingFile[] = [];
-
-  for (const requestedPath of requested.files) {
-    if (!isAbsolute(requestedPath)) {
-      throw new Error("Outgoing file path must be absolute.");
-    }
-    const path = await realpath(requestedPath);
-    if (!roots.some((root) => inside(root, path))) {
-      throw new Error(
-        "Outgoing file is outside the configured Mac file folders.",
-      );
-    }
-    files.push(await readOutgoingFile(path));
-  }
-
-  return { content: requested.content, files };
 }
 
 export async function prepareGeneratedArtifacts(

@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import type { ChatbotAccessConfig } from "../../chatbot/access";
 import {
-  macAgentBridge,
+  workerBridge,
   type DispatchResult,
-  type MacAgentJobResult,
+  type WorkerJobResult,
 } from "../../chatbot/bridge";
 import type {
   ChatbotJob,
@@ -473,12 +473,12 @@ export class AmbientReactionController {
     };
     const dispatch = (
       this.options.dispatch ??
-      ((candidate) => macAgentBridge.dispatch(candidate, ["chat"]))
+      ((candidate) => workerBridge.dispatch(candidate, ["chat"]))
     )(job);
     if (dispatch.status !== "accepted") return false;
     this.evaluationTimes.push(startedAt);
 
-    const result: MacAgentJobResult = await dispatch.result;
+    const result: WorkerJobResult = await dispatch.result;
     if (!result.ok) return false;
     const decision = parseSocialActionDecision(result.content);
     if (

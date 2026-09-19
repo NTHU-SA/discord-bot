@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { ServerWebSocket } from "bun";
 
-import { MacAgentBridge, type MacAgentSocketData } from "./bridge";
+import { WorkerBridge, type WorkerSocketData } from "./bridge";
 import {
   CHATBOT_PROTOCOL_VERSION,
   type ChatbotJob,
@@ -12,7 +12,6 @@ const originalSecrets = {
   worker: process.env.MINISAGO_WORKER_BRIDGE_SECRET,
 };
 const bridgeSecret = "bridge-secret-that-is-at-least-32-bytes";
-const macSecret = "mac-bridge-secret-that-is-at-least-32-bytes";
 
 afterEach(() => {
   for (const [name, value] of Object.entries({
@@ -40,13 +39,13 @@ function fakeSocket() {
     close(code?: number, reason?: string) {
       closed.push({ code, reason });
     },
-  } as unknown as ServerWebSocket<MacAgentSocketData>;
+  } as unknown as ServerWebSocket<WorkerSocketData>;
 
   return { socket, sent, closed };
 }
 
 function connectWorker(
-  bridge: MacAgentBridge,
+  bridge: WorkerBridge,
   {
     workerId = "oracle",
     secret = bridgeSecret,
@@ -83,10 +82,16 @@ function connectWorker(
   return worker;
 }
 
-describe("Mac agent bridge", () => {
+describe("Worker bridge", () => {
+  test("does not enable the bridge with the removed Mac secret", () => {
+    delete process.env.MINISAGO_WORKER_BRIDGE_SECRET;
+    process.env.MINISAGO_MAC_BRIDGE_SECRET = bridgeSecret;
+    expect(new WorkerBridge().isConfigured()).toBe(false);
+  });
+
   test("binds cloud worker identity to its profile secret", () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     const worker = fakeSocket();
 
     bridge.open(worker.socket);
@@ -109,7 +114,7 @@ describe("Mac agent bridge", () => {
 
   test("stays offline until an authenticated helper reports availability", () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     const { socket, sent } = connectWorker(bridge, {
       repositories: ["sago-cream/mini-sago", "Kiwi/backend"],
       chatbotRepository: "sago-cream/mini-sago",
@@ -128,50 +133,9 @@ describe("Mac agent bridge", () => {
     expect(bridge.getStatus()).toBe("available");
   });
 
-  test("triggers and records Oracle Skillbook refreshes", () => {
-    useWorker();
-    const bridge = new MacAgentBridge();
-    const { socket, sent } = connectWorker(bridge);
-    bridge.message(
-      socket,
-      JSON.stringify({
-        type: "availability",
-        available: true,
-        capacity: 1,
-        skillbook: { ok: true, syncing: false, skills: 21 },
-      }),
-    );
-
-    expect(bridge.triggerOracleSkillSync()).toBe(true);
-    expect(bridge.getWorkerSummary().skillbook?.syncing).toBe(true);
-    const request = JSON.parse(sent.at(-1)!);
-    expect(request).toMatchObject({ type: "skill_sync_request" });
-    expect(typeof request.requestId).toBe("string");
-
-    bridge.message(
-      socket,
-      JSON.stringify({
-        type: "skill_sync_result",
-        requestId: request.requestId,
-        status: {
-          ok: true,
-          syncing: false,
-          skills: 21,
-          lastSyncedAt: "2026-09-02T00:00:00.000Z",
-        },
-      }),
-    );
-    expect(bridge.getWorkerSummary().skillbook).toEqual({
-      ok: true,
-      syncing: false,
-      skills: 21,
-      lastSyncedAt: "2026-09-02T00:00:00.000Z",
-    });
-  });
-
   test("enforces the advertised capacity and resolves matching results", async () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     const { socket, sent } = connectWorker(bridge);
     const job: ChatbotJob = {
       id: "job-1",
@@ -185,23 +149,10 @@ describe("Mac agent bridge", () => {
       messages: [],
     };
 
-    const deltas: string[] = [];
-    const dispatch = bridge.dispatch(job, ["chat"], (delta) =>
-      deltas.push(delta),
-    );
+    const dispatch = bridge.dispatch(job, ["chat"]);
     expect(dispatch.status).toBe("accepted");
     expect(bridge.dispatch({ ...job, id: "job-2" }).status).toBe("busy");
     expect(JSON.parse(sent.at(-1)!)).toEqual({ type: "job", job });
-
-    bridge.message(
-      socket,
-      JSON.stringify({
-        type: "answer_delta",
-        jobId: job.id,
-        delta: "最初の文。",
-      }),
-    );
-    expect(deltas).toEqual(["最初の文。"]);
 
     bridge.message(
       socket,
@@ -242,7 +193,7 @@ describe("Mac agent bridge", () => {
 
   test("reserves the bridge across routing and answering jobs", async () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     const { socket } = connectWorker(bridge, {
       repositories: ["sago-cream/mini-sago", "Kiwi/backend"],
       chatbotRepository: "sago-cream/mini-sago",
@@ -313,7 +264,7 @@ describe("Mac agent bridge", () => {
 
   test("forwards bounded progress and stops a workflow job", async () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     const { socket, sent } = connectWorker(bridge);
     const acquired = bridge.acquireWorkflow();
     if (acquired.status !== "accepted") throw new Error("Expected workflow");
@@ -407,7 +358,7 @@ describe("Mac agent bridge", () => {
 
   test("reads Codex usage from the worker reserved by a workflow", async () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     const { socket, sent } = connectWorker(bridge, { repositories: [] });
     const acquired = bridge.acquireWorkflow();
     if (acquired.status !== "accepted") throw new Error("Expected workflow");
@@ -465,7 +416,7 @@ describe("Mac agent bridge", () => {
 
   test("runs multiple reserved workflows concurrently up to capacity", async () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     const { socket } = connectWorker(bridge, { capacity: 2 });
     const job: ChatbotJob = {
       id: "job-1",
@@ -524,129 +475,9 @@ describe("Mac agent bridge", () => {
     expect(bridge.getStatus()).toBe("available");
   });
 
-  test("keeps cloud and Mac connected while routing workflows by capability", async () => {
-    process.env.MINISAGO_WORKER_BRIDGE_SECRET = bridgeSecret;
-    process.env.MINISAGO_MAC_BRIDGE_SECRET = macSecret;
-    const bridge = new MacAgentBridge();
-    const cloud = connectWorker(bridge);
-    const mac = connectWorker(bridge, {
-      workerId: "hsi-mac",
-      secret: macSecret,
-    });
-    expect(cloud.closed).toEqual([]);
-    expect(mac.closed).toEqual([]);
-    expect(bridge.getWorkerSummary()).toEqual({
-      connected: 2,
-      available: 2,
-      capacity: 2,
-      active: 0,
-      mac: "available",
-    });
-
-    const first = bridge.acquireWorkflow();
-    const fallback = bridge.acquireWorkflow();
-    if (first.status !== "accepted" || fallback.status !== "accepted") {
-      throw new Error("Expected both workers to accept workflows");
-    }
-    const cloudJob: ChatbotJob = {
-      id: "cloud-job",
-      requesterUserId: "owner",
-      purpose: "answer",
-      executionRoute: "chat",
-      mcpAccessToken: "test-token",
-      channelId: "channel-1",
-      requestMessageId: "message-1",
-      request: "Review a PR",
-      messages: [],
-    };
-    const macJob = { ...cloudJob, id: "mac-job", request: "Open Xcode" };
-    const cloudDispatch = first.workflow.dispatch(cloudJob);
-    const fallbackDispatch = fallback.workflow.dispatch(macJob);
-    expect(JSON.parse(cloud.sent.at(-1)!)).toEqual({
-      type: "job",
-      job: cloudJob,
-    });
-    expect(JSON.parse(mac.sent.at(-1)!)).toEqual({
-      type: "job",
-      job: macJob,
-    });
-    bridge.message(
-      mac.socket,
-      JSON.stringify({
-        type: "result",
-        jobId: "cloud-job",
-        ok: true,
-        content: "wrong worker",
-      }),
-    );
-    expect(bridge.getWorkerSummary().active).toBe(2);
-    bridge.message(
-      cloud.socket,
-      JSON.stringify({
-        type: "result",
-        jobId: "cloud-job",
-        ok: true,
-        content: "routed",
-      }),
-    );
-    bridge.message(
-      mac.socket,
-      JSON.stringify({
-        type: "result",
-        jobId: "mac-job",
-        ok: true,
-        content: "fallback",
-      }),
-    );
-    if (
-      cloudDispatch.status !== "accepted" ||
-      fallbackDispatch.status !== "accepted"
-    ) {
-      throw new Error("Expected routed jobs");
-    }
-    await Promise.all([cloudDispatch.result, fallbackDispatch.result]);
-    fallback.workflow.release();
-
-    expect(first.workflow.route(["chat", "mac"])).toEqual({
-      status: "accepted",
-    });
-    const localDispatch = first.workflow.dispatch({
-      ...macJob,
-      id: "local-job",
-      executionRoute: "mac",
-    });
-    expect(JSON.parse(mac.sent.at(-1)!)).toEqual({
-      type: "job",
-      job: {
-        ...macJob,
-        id: "local-job",
-        executionRoute: "mac",
-      },
-    });
-    bridge.message(
-      mac.socket,
-      JSON.stringify({
-        type: "result",
-        jobId: "local-job",
-        ok: true,
-        content: "local",
-      }),
-    );
-    if (localDispatch.status !== "accepted") {
-      throw new Error("Expected Mac-routed job");
-    }
-    expect(await localDispatch.result).toEqual({ ok: true, content: "local" });
-    expect(
-      first.workflow.route(["dev", "mac"], "sago-cream/mini-sago"),
-    ).toEqual({
-      status: "accepted",
-    });
-    first.workflow.release();
-  });
-
   test("enforces repository scope before dispatching a dev job", () => {
     useWorker();
-    const bridge = new MacAgentBridge();
+    const bridge = new WorkerBridge();
     connectWorker(bridge);
 
     const workflow = bridge.acquireWorkflow();
@@ -672,65 +503,4 @@ describe("Mac agent bridge", () => {
     ).toBe("offline");
     workflow.workflow.release();
   });
-});
-
-test("direct voice dispatch cancels once and retains capacity until acknowledgement", async () => {
-  useWorker();
-  const bridge = new MacAgentBridge();
-  const { socket, sent } = connectWorker(bridge);
-  const job: ChatbotJob = {
-    id: "voice-one",
-    mcpAccessToken: "voice-test-token",
-    executionRoute: "chat",
-    purpose: "answer",
-    requesterUserId: "user",
-    channelId: "voice",
-    requestMessageId: "message",
-    request: "hello",
-    messages: [],
-    streamReply: true,
-  };
-  const deltas: string[] = [];
-  const dispatch = bridge.dispatch(job, ["chat"], (delta) =>
-    deltas.push(delta),
-  );
-  if (dispatch.status !== "accepted") throw new Error("Expected dispatch");
-  expect(dispatch.cancel()).toBe(true);
-  expect(dispatch.cancel()).toBe(true);
-  expect(
-    sent
-      .map((value) => JSON.parse(value))
-      .filter((value) => value.type === "cancel"),
-  ).toEqual([{ type: "cancel", jobId: job.id }]);
-  bridge.message(
-    socket,
-    JSON.stringify({ type: "answer_delta", jobId: job.id, delta: "stale" }),
-  );
-  expect(deltas).toEqual([]);
-  expect(bridge.dispatch({ ...job, id: "voice-two" }).status).toBe("busy");
-  bridge.message(
-    socket,
-    JSON.stringify({
-      type: "result",
-      jobId: job.id,
-      ok: false,
-      error: "cancelled",
-      failureKind: "internal",
-      stopped: true,
-    }),
-  );
-  expect(await dispatch.result).toMatchObject({ ok: false, stopped: true });
-  expect(dispatch.cancel()).toBe(false);
-  const next = bridge.dispatch({ ...job, id: "voice-two" });
-  expect(next.status).toBe("accepted");
-  bridge.message(
-    socket,
-    JSON.stringify({
-      type: "result",
-      jobId: "voice-two",
-      ok: true,
-      content: "hello",
-    }),
-  );
-  if (next.status === "accepted") await next.result;
 });

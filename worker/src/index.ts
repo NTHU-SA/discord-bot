@@ -1,8 +1,8 @@
-import { MacAgentClient } from "./client";
-import { loadMacAgentConfig } from "./config";
+import { WorkerClient } from "./client";
+import { loadWorkerConfig } from "./config";
 
-const config = await loadMacAgentConfig();
-const client = new MacAgentClient(config);
+const config = await loadWorkerConfig();
+const client = new WorkerClient(config);
 const healthServer = Bun.serve({
   hostname: "0.0.0.0",
   port: Number(process.env.MINISAGO_WORKER_HEALTH_PORT || 8081),
