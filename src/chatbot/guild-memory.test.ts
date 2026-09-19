@@ -47,7 +47,7 @@ describe("GuildMemoryStore", () => {
       join(memory.directory, `${guildId}.md`),
       "utf8",
     );
-    expect(markdown).toContain("# MiniSago server memory");
+    expect(markdown).toContain("# NTHUSA Bot server memory");
     expect(markdown).toContain("- [mem_012345abcdef] 大家說的「允」通常是允成");
 
     const log = Bun.spawnSync(["git", "log", "--format=%s"], {

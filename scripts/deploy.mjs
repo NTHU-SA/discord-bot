@@ -2,16 +2,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 import { requestMinisagoDeployment } from "./deploy-socket";
 
-const repository = "sago-cream/mini-sago";
+const repository = "NTHU-SA/discord-bot";
 const workflow = "image.yml";
-const service = "minisago";
-const remoteHost = process.env.SAGO_CLOUD_HOST ?? "sago-cloud";
-const remoteDeployRoot =
-  process.env.SAGO_CLOUD_OPERATIONS_ROOT ?? "/srv/sago-cloud/operations";
-const sshConnectTimeout = "10";
-const sshRetryDelay = "15";
-const sshAttempts = 3;
-
 function output(command, args) {
   return execFileSync(command, args, { encoding: "utf8" }).trim();
 }
@@ -37,55 +29,18 @@ function remoteBranchCommit(remote, branch) {
   ]).split(/\s/u)[0];
 }
 
-function deployRemote() {
-  const remoteCommand = `${remoteDeployRoot}/scripts/deploy-${service}`;
-
-  for (let attempt = 1; attempt <= sshAttempts; attempt += 1) {
-    const result = spawnSync(
-      "ssh",
-      [
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        `ConnectTimeout=${sshConnectTimeout}`,
-        remoteHost,
-        remoteCommand,
-      ],
-      { encoding: "utf8" },
-    );
-
-    if (result.stdout) process.stdout.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
-    if (result.status === 0) return;
-
-    const timedOut = result.stderr?.includes("Operation timed out");
-    if (!timedOut || attempt === sshAttempts) {
-      if (timedOut) {
-        console.error(
-          `Unable to reach ${remoteHost} after ${sshAttempts} attempts. Check that its SSH service and firewall permit this network.`,
-        );
-      }
-      process.exit(result.status ?? 1);
-    }
-
-    console.error(
-      `SSH connection to ${remoteHost} timed out; retrying in ${sshRetryDelay} seconds (${attempt}/${sshAttempts}).`,
-    );
-    run("sleep", [sshRetryDelay]);
-  }
-}
-
 async function deploy(commit) {
   const deploySocket = process.env.MINISAGO_DEPLOY_SOCKET?.trim();
   if (!deploySocket) {
-    deployRemote();
-    return;
+    throw new Error(
+      "MINISAGO_DEPLOY_SOCKET is required. Ask the NTHUSA host operator to install the deployment runner described in docs/nthusa-hosting.md.",
+    );
   }
 
   const channelId = process.env.MINISAGO_DISCORD_CHANNEL_ID?.trim() || "";
   await requestMinisagoDeployment(deploySocket, commit, channelId);
   console.log(
-    `MiniSago deployment for ${commit} was accepted. The bot and Oracle will restart.`,
+    `NTHUSA Bot deployment for ${commit} was accepted. The core and worker will restart.`,
   );
 }
 

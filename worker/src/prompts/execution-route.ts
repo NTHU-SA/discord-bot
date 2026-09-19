@@ -1,3 +1,4 @@
+import { BOT_NAME } from "../../../contracts/identity";
 import type { ExecutionRouteJob } from "../../../contracts/worker-contract";
 import { requestContext } from "./context";
 
@@ -23,7 +24,7 @@ export const EXECUTION_ROUTE_OUTPUT_SCHEMA = {
   required: ["route", "repository", "threadTitle", "reason"],
 } as const;
 
-export const EXECUTION_ROUTE_INSTRUCTIONS = `Choose where to run this owner request for MiniSago. The requester is already authorized for every route. Return a routing decision without answering or acting on the request.
+export const EXECUTION_ROUTE_INSTRUCTIONS = `Choose where to run this owner request for ${BOT_NAME}. The requester is already authorized for every route. Return a routing decision without answering or acting on the request.
 
 Choose oracle only when the request needs developer tools for PR review, repository inspection or analysis, debugging, tests, builds, issue work, code changes, commits, feature-branch pushes, draft PRs, or deployment work.
 

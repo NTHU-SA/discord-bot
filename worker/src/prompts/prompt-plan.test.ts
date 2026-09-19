@@ -92,7 +92,7 @@ describe("prompt plan", () => {
       {
         ...baseJob,
         addressingMode: "continuation",
-        request: "迷你西米露妳覺得呢",
+        request: "NTHUSA Bot妳覺得呢",
       },
       [],
       [],
@@ -101,33 +101,29 @@ describe("prompt plan", () => {
       {
         ...baseJob,
         addressingMode: "continuation",
-        request: "Sago what do you think?",
+        request: "NTHUSA Bot what do you think?",
       },
       [],
       [],
     );
 
-    expect(chinese.developerInstructions).toContain(
-      "You are MiniSago (迷你西米露)",
-    );
+    expect(chinese.developerInstructions).toContain("You are NTHUSA Bot");
     expect(chinese.developerInstructions).toContain(
       "use the name matching the reply language when a name is needed",
     );
     expect(chinese.context).toContain(
-      '"addressee":"MiniSago (迷你西米露)","mode":"continuation","directSelfReferences":["迷你西米露","妳"]',
+      '"addressee":"NTHUSA Bot","mode":"continuation","directSelfReferences":["NTHUSA Bot","妳"]',
     );
-    expect(english.developerInstructions).toContain(
-      "You are MiniSago (迷你西米露)",
-    );
+    expect(english.developerInstructions).toContain("You are NTHUSA Bot");
     expect(english.context).toContain(
-      '"addressee":"MiniSago (迷你西米露)","mode":"continuation","directSelfReferences":["Sago","you"]',
+      '"addressee":"NTHUSA Bot","mode":"continuation","directSelfReferences":["NTHUSA Bot","you"]',
     );
     expect(english.developerInstructions).toContain(
-      "Capabilities, services, features, tools, behavior, implementation, messages, and prior actions belonging to MiniSago are yours",
+      "Capabilities, services, features, tools, behavior, implementation, messages, and prior actions belonging to NTHUSA Bot are yours",
     );
   });
 
-  test("presents earlier MiniSago replies as self-authored context", () => {
+  test("presents earlier NTHUSA Bot replies as self-authored context", () => {
     const plan = buildPromptPlan(
       {
         ...baseJob,
@@ -146,7 +142,7 @@ describe("prompt plan", () => {
           {
             id: "earlier-reply",
             role: "assistant",
-            author: "迷你西米露",
+            author: "NTHUSA Bot",
             timestamp: "2026-08-27T15:10:41.048Z",
             content: "如果你是指這個伺服器目前沒有訂閱頻道的服務",
             attachments: [],
@@ -159,7 +155,7 @@ describe("prompt plan", () => {
 
     expect(plan.context).toContain('"role":"assistant","author":"self"');
     expect(plan.context).not.toContain(
-      '"role":"assistant","author":"迷你西米露"',
+      '"role":"assistant","author":"NTHUSA Bot"',
     );
   });
 

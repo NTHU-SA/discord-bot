@@ -196,7 +196,7 @@ class CodexAppServerSession {
 
   private async initialize() {
     await this.request("initialize", {
-      clientInfo: { name: "minisago", title: "MiniSago", version: "1" },
+      clientInfo: { name: "minisago", title: "NTHUSA Bot", version: "1" },
     });
     this.options.onProgress?.({
       phase: "preparing",

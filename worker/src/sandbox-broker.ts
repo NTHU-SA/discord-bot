@@ -16,7 +16,7 @@ const MAX_WORKSPACE_BYTES = 64 * 1024 * 1024;
 const MAX_WORKSPACE_FILES = 128;
 const CONTAINER_TIMEOUT_MS = 127_000;
 const POLL_INTERVAL_MS = 100;
-const SANDBOX_LABEL = "dev.hsichen.minisago.python-sandbox";
+const SANDBOX_LABEL = "tw.nthusa.discord-bot.python-sandbox";
 const jobDirectoryPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const image = process.env.MINISAGO_SANDBOX_IMAGE?.trim();
@@ -376,4 +376,4 @@ Bun.serve({
   },
 });
 
-console.log(`MiniSago sandbox broker listening on ${PORT}.`);
+console.log(`NTHUSA Bot sandbox broker listening on ${PORT}.`);

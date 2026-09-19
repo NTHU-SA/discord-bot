@@ -2,7 +2,7 @@ const DEFAULT_QUERIES = ["清大", "NTHU", "學生會"];
 const DEFAULT_READER_BASE_URL = "https://r.jina.ai/";
 
 export const THREADS_SEARCH_READER_HEADERS = {
-  "User-Agent": "MiniSago/0.1",
+  "User-Agent": "NTHUSA Bot/0.1",
   "X-Cache-Tolerance": "300",
   "X-Respond-With": "markdown",
 } as const;

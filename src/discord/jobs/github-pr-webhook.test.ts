@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   buildReviewRequest,
@@ -15,6 +15,29 @@ import {
 const HSI_ID = "917446775873343600";
 const DANIEL_ID = "927940363644194847";
 const JASMINE_ID = "881904247879368715";
+
+const savedConfiguration = {
+  repositories: process.env.GITHUB_PR_REPOSITORIES,
+  reviewers: process.env.GITHUB_REVIEWERS_JSON,
+};
+beforeEach(() => {
+  process.env.GITHUB_PR_REPOSITORIES = "nthu-sa/discord-bot";
+  process.env.GITHUB_REVIEWERS_JSON = JSON.stringify({
+    maintainer: HSI_ID,
+    reviewer1: DANIEL_ID,
+    reviewer2: JASMINE_ID,
+  });
+});
+afterEach(() => {
+  restoreEnvironmentVariable(
+    "GITHUB_PR_REPOSITORIES",
+    savedConfiguration.repositories,
+  );
+  restoreEnvironmentVariable(
+    "GITHUB_REVIEWERS_JSON",
+    savedConfiguration.reviewers,
+  );
+});
 
 function sign(body: string, secret: string) {
   return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
@@ -41,15 +64,15 @@ function webhookRequest(
 function pullRequestPayload(action: string, merged = false, number = 42) {
   return {
     action,
-    repository: { full_name: "sago-cream/health-check-system" },
+    repository: { full_name: "nthu-sa/discord-bot" },
     pull_request: {
       number,
       title: "Make health checks clearer",
-      html_url: `https://github.com/sago-cream/health-check-system/pull/${number}`,
+      html_url: `https://github.com/nthu-sa/discord-bot/pull/${number}`,
       draft: false,
       merged,
-      user: { login: "sago-cream" },
-      merged_by: merged ? { login: "Danielllllllllllllll" } : null,
+      user: { login: "maintainer" },
+      merged_by: merged ? { login: "reviewer1" } : null,
     },
   };
 }
@@ -84,18 +107,30 @@ describe("GitHub PR webhook", () => {
     expect(verifyGithubWebhookSignature(body, null, secret)).toBe(false);
   });
 
-  test("mentions Daniel and Jasmine for Hsi's PR", () => {
+  test("empty reviewer configuration does not mention personal accounts", () => {
+    const result = buildReviewRequest({
+      authorLogin: "constructor",
+      title: "Test",
+      url: "https://github.com/nthu-sa/discord-bot/pull/1",
+      reviewers: {},
+    });
+    expect(result.authorDiscordId).toBeUndefined();
+    expect(result.reviewerDiscordIds).toEqual([]);
+    expect(result.message.allowed_mentions).toEqual({ parse: [], users: [] });
+  });
+
+  test("mentions configured reviewers except the author", () => {
     expect(
       buildReviewRequest({
-        authorLogin: "sago-cream",
+        authorLogin: "maintainer",
         title: "Improve checks",
-        url: "https://github.com/sago-cream/health-check-system/pull/1",
+        url: "https://github.com/nthu-sa/discord-bot/pull/1",
       }),
     ).toEqual({
       authorDiscordId: HSI_ID,
       reviewerDiscordIds: [DANIEL_ID, JASMINE_ID],
       message: {
-        content: `<@${DANIEL_ID}> <@${JASMINE_ID}> please review [Improve checks](<https://github.com/sago-cream/health-check-system/pull/1>)`,
+        content: `<@${DANIEL_ID}> <@${JASMINE_ID}> please review [Improve checks](<https://github.com/nthu-sa/discord-bot/pull/1>)`,
         allowed_mentions: {
           parse: [],
           users: [DANIEL_ID, JASMINE_ID],
@@ -104,19 +139,22 @@ describe("GitHub PR webhook", () => {
     });
   });
 
-  test("mentions Hsi for Daniel's and Jasmine's PRs", () => {
+  test("excludes the author from reviewer mentions", () => {
     for (const [authorLogin, authorDiscordId] of [
-      ["Danielllllllllllllll", DANIEL_ID],
-      ["Jasmine0108", JASMINE_ID],
+      ["reviewer1", DANIEL_ID],
+      ["reviewer2", JASMINE_ID],
     ]) {
       const request = buildReviewRequest({
         authorLogin,
         title: "Improve checks",
-        url: "https://github.com/sago-cream/health-check-system/pull/2",
+        url: "https://github.com/nthu-sa/discord-bot/pull/2",
       });
 
       expect(request.authorDiscordId).toBe(authorDiscordId);
-      expect(request.reviewerDiscordIds).toEqual([HSI_ID]);
+      expect(request.reviewerDiscordIds).toEqual([
+        HSI_ID,
+        authorDiscordId === DANIEL_ID ? JASMINE_ID : DANIEL_ID,
+      ]);
     }
   });
 
@@ -249,7 +287,7 @@ describe("GitHub PR webhook", () => {
             url: "https://discord.com/api/v10/channels/thread-42/messages",
             method: "POST",
             body: {
-              content: `<@${DANIEL_ID}> <@${JASMINE_ID}> please review [Make health checks clearer](<https://github.com/sago-cream/health-check-system/pull/42>)`,
+              content: `<@${DANIEL_ID}> <@${JASMINE_ID}> please review [Make health checks clearer](<https://github.com/nthu-sa/discord-bot/pull/42>)`,
               allowed_mentions: {
                 parse: [],
                 users: [DANIEL_ID, JASMINE_ID],
@@ -301,16 +339,12 @@ describe("GitHub PR webhook", () => {
         ]);
 
         const state = JSON.parse(await readFile(stateFile, "utf8"));
+        expect(state.threads["nthu-sa/discord-bot#42"].archived).toBe(true);
         expect(
-          state.threads["sago-cream/health-check-system#42"].archived,
+          state.threads["nthu-sa/discord-bot#42"].approvalNotificationSent,
         ).toBe(true);
         expect(
-          state.threads["sago-cream/health-check-system#42"]
-            .approvalNotificationSent,
-        ).toBe(true);
-        expect(
-          state.threads["sago-cream/health-check-system#42"]
-            .mergeNotificationSent,
+          state.threads["nthu-sa/discord-bot#42"].mergeNotificationSent,
         ).toBe(true);
 
         calls.length = 0;
@@ -350,12 +384,11 @@ describe("GitHub PR webhook", () => {
         ).toBe(false);
 
         const closedState = JSON.parse(await readFile(stateFile, "utf8"));
+        expect(closedState.threads["nthu-sa/discord-bot#43"].archived).toBe(
+          true,
+        );
         expect(
-          closedState.threads["sago-cream/health-check-system#43"].archived,
-        ).toBe(true);
-        expect(
-          closedState.threads["sago-cream/health-check-system#43"]
-            .mergeNotificationSent,
+          closedState.threads["nthu-sa/discord-bot#43"].mergeNotificationSent,
         ).toBeUndefined();
       } finally {
         globalThis.fetch = originalFetch;

@@ -69,8 +69,8 @@ export async function sendDeploymentNotificationIfNeeded(
   const shortCommit = status.commit.slice(0, 7);
   const content =
     status.status === "complete"
-      ? `MiniSago deployed ${shortCommit} successfully.`
-      : `MiniSago deployment ${shortCommit} failed with exit code ${status.exitCode ?? "unknown"}.`;
+      ? `NTHUSA Bot deployed ${shortCommit} successfully.`
+      : `NTHUSA Bot deployment ${shortCommit} failed with exit code ${status.exitCode ?? "unknown"}.`;
   await options.discordRequest(`/channels/${status.channelId}/messages`, {
     method: "POST",
     body: { content, allowed_mentions: { parse: [] } },
@@ -97,7 +97,7 @@ export function startDeploymentNotificationMonitor() {
     try {
       await sendDeploymentNotificationIfNeeded(options);
     } catch (error) {
-      console.error("Failed to report MiniSago deployment status:", error);
+      console.error("Failed to report NTHUSA Bot deployment status:", error);
     } finally {
       running = false;
     }

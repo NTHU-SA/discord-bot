@@ -70,12 +70,12 @@ function renderSnapshot(
         `- [${entry.id}] ${entry.content}\n  <!-- evidence=${entry.evidenceMessageIds.join(",")}; updated_by=${entry.updatedBy}; updated_at=${entry.updatedAt} -->`,
     )
     .join("\n\n");
-  return `# MiniSago server memory\n\n<!-- guild_id=${guildId}; revision=${snapshot.revision}; updated_at=${updatedAt} -->\n${entries ? `\n${entries}\n` : ""}`;
+  return `# NTHUSA Bot server memory\n\n<!-- guild_id=${guildId}; revision=${snapshot.revision}; updated_at=${updatedAt} -->\n${entries ? `\n${entries}\n` : ""}`;
 }
 
 function parseSnapshot(guildId: string, value: string): GuildMemorySnapshot {
   const header = value.match(
-    /^# MiniSago server memory\n\n<!-- guild_id=(\d{17,20}); revision=(\d+); updated_at=([^\s]+) -->\n/u,
+    /^# NTHUSA Bot server memory\n\n<!-- guild_id=(\d{17,20}); revision=(\d+); updated_at=([^\s]+) -->\n/u,
   );
   if (!header || header[1] !== guildId) {
     throw new Error(`Invalid server memory file for guild ${guildId}.`);
@@ -289,7 +289,7 @@ export class GuildMemoryStore {
     await runGit(this.directory, ["add", "--", filename]);
     await runGit(this.directory, [
       "-c",
-      "user.name=MiniSago",
+      "user.name=NTHUSA Bot",
       "-c",
       "user.email=memory@minisago.local",
       "commit",

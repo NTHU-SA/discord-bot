@@ -126,7 +126,7 @@ async function connect(token: string) {
   return client;
 }
 
-describe("MiniSago MCP server", () => {
+describe("NTHUSA Bot MCP server", () => {
   test("budgets resolved history and search with explicit omissions", () => {
     const messages = Array.from({ length: 30 }, (_, index) => ({
       id: String(index),

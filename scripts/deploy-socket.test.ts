@@ -14,7 +14,7 @@ afterEach(async () => {
   );
 });
 
-test("submits one immutable MiniSago deployment request", async () => {
+test("submits one immutable NTHUSA Bot deployment request", async () => {
   const root = await mkdtemp(join(tmpdir(), "minisago-deploy-socket-"));
   roots.push(root);
   const socketPath = join(root, "deploy.sock");
@@ -24,7 +24,7 @@ test("submits one immutable MiniSago deployment request", async () => {
   const server = createServer((socket) => {
     socket.setEncoding("utf8");
     socket.on("data", (request) => {
-      requests.push(request);
+      requests.push(request.toString());
       socket.end(`accepted ${commit}\n`);
     });
   });

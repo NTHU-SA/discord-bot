@@ -1133,7 +1133,7 @@ export async function handleChatbotMediaRequest(request: Request) {
         headers: {
           "Cache-Control": "no-store",
           "Content-Type": asset.contentType ?? "application/octet-stream",
-          "X-MiniSago-Filename": encodeURIComponent(asset.filename),
+          "X-NTHUSA-Filename": encodeURIComponent(asset.filename),
         },
       });
     }
@@ -1147,7 +1147,7 @@ export async function handleChatbotMediaRequest(request: Request) {
         chatbotMediaLimits.outputBytes,
       );
       const filename = decodeURIComponent(
-        request.headers.get("x-minisago-filename") ?? mediaId,
+        request.headers.get("x-nthusa-filename") ?? mediaId,
       );
       const reference = authenticated.session.mediaRegistry.put({
         mediaId,

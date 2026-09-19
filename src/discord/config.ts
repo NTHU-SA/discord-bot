@@ -1,5 +1,3 @@
-export const TARGET_GUILD_ID = "1282936453134815275";
-
 export function getPublicDiscordSummary() {
   return {
     hasApplicationId: Boolean(process.env.DISCORD_APPLICATION_ID?.trim()),

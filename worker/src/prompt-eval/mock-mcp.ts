@@ -108,7 +108,7 @@ server.registerTool(
   "describe_capabilities",
   {
     description:
-      "Describe request-scoped MiniSago capabilities when someone asks what you can do.",
+      "Describe request-scoped NTHUSA Bot capabilities when someone asks what you can do.",
     inputSchema: {},
   },
   async (input) => {

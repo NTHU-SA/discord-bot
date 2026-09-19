@@ -1,0 +1,22 @@
+[Unit]
+Description=NTHUSA Discord bot deployment socket
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/nthusa-discord-bot/app
+Environment=NTHUSA_DEPLOY_CHECKOUT=/srv/nthusa-discord-bot/app
+Environment=NTHUSA_WORKER_GID=1000
+EnvironmentFile=-/etc/nthusa-discord-deploy.env
+ExecStart=/usr/local/bin/bun /srv/nthusa-discord-bot/app/scripts/host-deploy.ts
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=nthusa-discord-bot
+RuntimeDirectoryMode=0750
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

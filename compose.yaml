@@ -1,0 +1,99 @@
+name: nthusa-discord-bot
+
+x-worker-image: &worker-image ${NTHUSA_WORKER_IMAGE:-ghcr.io/nthu-sa/discord-bot-worker}:${NTHUSA_IMAGE_TAG:-main}
+
+services:
+  core:
+    image: ${NTHUSA_CORE_IMAGE:-ghcr.io/nthu-sa/discord-bot}:${NTHUSA_IMAGE_TAG:-main}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file: .env.production
+    ports:
+      - "127.0.0.1:${NTHUSA_HTTP_PORT:-3000}:3000"
+    volumes:
+      - core-state:/app/state
+      - ${NTHUSA_DEPLOY_STATE_DIR:-/var/lib/nthusa-discord-bot}:/run/deployment:ro
+
+  worker:
+    image: *worker-image
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    init: true
+    env_file: .env.worker
+    environment:
+      MINISAGO_BRIDGE_URL: ws://core:3000/api/worker/ws
+      MINISAGO_MCP_URL: http://core:3000/api/chatbot/mcp
+      MINISAGO_SANDBOX_URL: http://sandbox:8080
+      MINISAGO_WORKER_ID: oracle
+    depends_on:
+      core:
+        condition: service_healthy
+      sandbox:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const r=await fetch('http://127.0.0.1:8081/health');process.exit(r.ok?0:1)",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - codex-auth:/home/bun/.codex
+      - github-auth:/home/bun/.config/gh
+      - worker-state:/var/lib/minisago
+      - workspace:/workspace
+      - ${NTHUSA_DEPLOY_SOCKET_DIR:-/run/nthusa-discord-bot}:/run/nthusa-deploy:ro
+    networks: [default, sandbox-internal]
+
+  sandbox:
+    image: *worker-image
+    restart: unless-stopped
+    init: true
+    entrypoint: ["bun"]
+    command: ["src/sandbox-broker.ts"]
+    user: "0:0"
+    environment:
+      HOME: /tmp
+      MINISAGO_SANDBOX_IMAGE: *worker-image
+      MINISAGO_SANDBOX_JOBS_ROOT: ${NTHUSA_SANDBOX_JOBS_ROOT:-/var/lib/nthusa-sandbox}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${NTHUSA_SANDBOX_JOBS_ROOT:-/var/lib/nthusa-sandbox}:${NTHUSA_SANDBOX_JOBS_ROOT:-/var/lib/nthusa-sandbox}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16m,mode=0700"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const r=await fetch('http://127.0.0.1:8080/health');process.exit(r.ok?0:1)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks: [sandbox-internal]
+
+volumes:
+  core-state:
+  codex-auth:
+  github-auth:
+  worker-state:
+  workspace:
+
+networks:
+  sandbox-internal:
+    internal: true

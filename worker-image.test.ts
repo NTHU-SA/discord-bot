@@ -7,7 +7,7 @@ const hostedDockerfile = await Bun.file(
   new URL("./Dockerfile", import.meta.url),
 ).text();
 const workerCompose = await Bun.file(
-  new URL("./compose.worker.yaml", import.meta.url),
+  new URL("./compose.yaml", import.meta.url),
 ).text();
 const sandboxBroker = await Bun.file(
   new URL("./worker/src/sandbox-broker.ts", import.meta.url),
@@ -94,7 +94,7 @@ test("generic Python runs behind a private container boundary", () => {
   expect(worker).not.toContain("/var/run/docker.sock");
   expect(sandbox).toContain("/var/run/docker.sock:/var/run/docker.sock");
   expect(sandbox).toContain("sandbox-internal");
-  expect(sandbox).toContain("cap_drop:\n      - ALL");
+  expect(sandbox).toContain("cap_drop: [ALL]");
   expect(sandbox).toContain("no-new-privileges:true");
   expect(workerCompose).toContain("internal: true");
   for (const guardrail of [
