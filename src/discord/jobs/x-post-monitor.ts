@@ -1,33 +1,11 @@
+import { z } from "zod";
+import { join } from "node:path";
 import { createDiscordRequest } from "../api/request";
 import {
   deliverToServiceDestinations,
-  getServiceSubscriptionStore,
-  type ManagedServiceId,
   type ServiceDestination,
 } from "../service-subscriptions";
 import { decodeEntities, readJsonFile, writeJsonFile } from "./job-utils";
-
-const DEFAULT_HANDLE = "thsottiaux";
-const DEFAULT_STATE_FILE = ".data/x-post-state.json";
-const DEFAULT_ADDITIONAL_PIPES = [
-  {
-    handle: "thsottiaux",
-    service: "x_posts_thsottiaux",
-    stateFileName: "x-post-thsottiaux-additional-state.json",
-    onlyAuthoredPosts: false,
-  },
-  {
-    handle: "hololive_dreams",
-    service: "x_posts_hololive_dreams",
-    stateFileName: "x-post-hololive-dreams-state.json",
-    onlyAuthoredPosts: true,
-  },
-] as const satisfies ReadonlyArray<{
-  handle: string;
-  service: ManagedServiceId;
-  stateFileName: string;
-  onlyAuthoredPosts: boolean;
-}>;
 const DEFAULT_CHECK_INTERVAL_MS = 300_000;
 const STATE_CHECKPOINT_INTERVAL_MS = 3_600_000;
 const USER_AGENT = "MiniSago/0.1";
@@ -41,7 +19,7 @@ export type XPost = {
 };
 
 type XPostMonitorConfig = {
-  service: ManagedServiceId;
+  destinations: ServiceDestination[];
   botToken: string;
   handle: string;
   feedUrl: string;
@@ -152,7 +130,10 @@ export function shouldCheckpointXPostState(
   );
 }
 
-export function buildXPostMessage(post: XPost, handle = DEFAULT_HANDLE) {
+export function buildXPostMessage(
+  post: XPost,
+  handle = new URL(post.url).pathname.split("/")[1],
+) {
   return {
     content: `https://fxtwitter.com/${handle}/status/${post.id}`,
     allowed_mentions: { parse: [] as [] },
@@ -175,66 +156,67 @@ function parseCheckIntervalMs(value: string | undefined) {
   return parsed;
 }
 
-function stateFileBeside(stateFile: string, fileName: string) {
-  const separatorIndex = Math.max(
-    stateFile.lastIndexOf("/"),
-    stateFile.lastIndexOf("\\"),
-  );
-
-  return separatorIndex >= 0
-    ? `${stateFile.slice(0, separatorIndex + 1)}${fileName}`
-    : fileName;
-}
+const feedSchema = z
+  .object({
+    handle: z.string().regex(/^[A-Za-z0-9_]{1,15}$/),
+    guildId: z.string().regex(/^\d{17,20}$/),
+    channelId: z.string().regex(/^\d{17,20}$/),
+    feedUrl: z
+      .url()
+      .refine((value) => new URL(value).protocol === "https:")
+      .optional(),
+    onlyAuthoredPosts: z.boolean().default(false),
+  })
+  .strict();
 
 export function getXPostMonitorConfigs(
   env: NodeJS.ProcessEnv = process.env,
 ): XPostMonitorConfig[] {
-  if (env.X_POST_MONITOR_DISABLED === "true") {
+  if (env.X_POST_MONITOR_DISABLED === "true" || !env.DISCORD_BOT_TOKEN?.trim())
     return [];
+  const feeds = z
+    .array(feedSchema)
+    .max(20)
+    .parse(JSON.parse(env.X_POST_FEEDS_JSON || "[]"));
+  const groups = new Map<string, XPostMonitorConfig>();
+  const stateRoot =
+    env.X_POST_STATE_DIRECTORY?.trim() ||
+    (env.NODE_ENV === "production" ? "/app/state/x-posts" : ".data/x-posts");
+  for (const feed of feeds) {
+    const key = feed.handle.toLowerCase();
+    const feedUrl =
+      feed.feedUrl ||
+      "https://fxtwitter.com/" + feed.handle + "/feed.xml?count=20";
+    let config = groups.get(key);
+    if (
+      config &&
+      (config.feedUrl !== feedUrl ||
+        config.onlyAuthoredPosts !== feed.onlyAuthoredPosts)
+    )
+      throw new Error("Conflicting X feed settings for @" + feed.handle);
+    if (!config) {
+      config = {
+        botToken: env.DISCORD_BOT_TOKEN.trim(),
+        handle: feed.handle,
+        feedUrl,
+        stateFile: join(stateRoot, key + ".json"),
+        onlyAuthoredPosts: feed.onlyAuthoredPosts,
+        checkIntervalMs: parseCheckIntervalMs(env.X_POST_CHECK_INTERVAL_MS),
+        destinations: [],
+      };
+      groups.set(key, config);
+    }
+    if (
+      !config.destinations.some(
+        (destination) => destination.channelId === feed.channelId,
+      )
+    )
+      config.destinations.push({
+        guildId: feed.guildId,
+        channelId: feed.channelId,
+      });
   }
-
-  const botToken = env.DISCORD_BOT_TOKEN?.trim();
-
-  if (!botToken) {
-    console.warn("X post monitor disabled: DISCORD_BOT_TOKEN is missing.");
-    return [];
-  }
-
-  const handle = env.X_POST_HANDLE?.trim() || DEFAULT_HANDLE;
-  const stateFile = env.X_POST_STATE_FILE?.trim() || DEFAULT_STATE_FILE;
-  const sharedConfig = {
-    botToken,
-    checkIntervalMs: parseCheckIntervalMs(env.X_POST_CHECK_INTERVAL_MS),
-  };
-  const primaryConfig: XPostMonitorConfig = {
-    ...sharedConfig,
-    service: "x_posts_primary",
-    handle,
-    feedUrl:
-      env.X_POST_FEED_URL?.trim() ||
-      `https://fxtwitter.com/${handle}/feed.xml?count=20`,
-    stateFile,
-    onlyAuthoredPosts: false,
-  };
-
-  return [
-    primaryConfig,
-    ...DEFAULT_ADDITIONAL_PIPES.map(
-      ({
-        handle,
-        service,
-        stateFileName,
-        onlyAuthoredPosts,
-      }): XPostMonitorConfig => ({
-        ...sharedConfig,
-        service,
-        handle,
-        feedUrl: `https://fxtwitter.com/${handle}/feed.xml?count=20`,
-        stateFile: stateFileBeside(stateFile, stateFileName),
-        onlyAuthoredPosts,
-      }),
-    ),
-  ];
+  return [...groups.values()];
 }
 
 async function fetchLatestXPosts(feedUrl: string) {
@@ -277,9 +259,7 @@ async function sendXPostAlertsIfNeeded(
   config: XPostMonitorConfig,
   now = new Date(),
 ) {
-  const destinations = getServiceSubscriptionStore().destinations(
-    config.service,
-  );
+  const destinations = config.destinations;
   if (destinations.length === 0) return;
 
   const feedPosts = await fetchLatestXPosts(config.feedUrl);

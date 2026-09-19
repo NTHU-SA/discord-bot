@@ -19,15 +19,15 @@ const requiredGuildPermissionFlags = [
   ["SEND_MESSAGES", 1n << 11n],
   ["MANAGE_MESSAGES", 1n << 13n],
   ["EMBED_LINKS", 1n << 14n],
+  ["ATTACH_FILES", 1n << 15n],
   ["READ_MESSAGE_HISTORY", 1n << 16n],
-  ["CONNECT", 1n << 20n],
-  ["SPEAK", 1n << 21n],
   ["MANAGE_WEBHOOKS", 1n << 29n],
   ["MANAGE_GUILD_EXPRESSIONS", 1n << 30n],
   ["MANAGE_THREADS", 1n << 34n],
   ["CREATE_PUBLIC_THREADS", 1n << 35n],
   ["SEND_MESSAGES_IN_THREADS", 1n << 38n],
   ["CREATE_GUILD_EXPRESSIONS", 1n << 43n],
+  ["PIN_MESSAGES", 1n << 51n],
 ];
 
 const guildInstallScopes = ["bot"];
@@ -73,35 +73,18 @@ await discordApi("/applications/@me", {
   ),
 });
 
-const askCommand = {
-  name: "ask",
-  type: 1,
-  description: "Ask MiniSago privately in this channel",
-  options: [
-    {
-      name: "prompt",
-      type: 3,
-      description: "What you want to ask MiniSago",
-      required: true,
-      max_length: 2_000,
-    },
-  ],
-};
-
-const commandTargets = guildId
-  ? [
-      { path: `/applications/${applicationId}/commands`, commands: [] },
-      {
-        path: `/applications/${applicationId}/guilds/${guildId}/commands`,
-        commands: [askCommand],
-      },
-    ]
-  : [
-      {
-        path: `/applications/${applicationId}/commands`,
-        commands: [{ ...askCommand, contexts: [0], integration_types: [0] }],
-      },
-    ];
+// This application uses gateway mentions and component interactions only.
+const commandTargets = [
+  { path: `/applications/${applicationId}/commands`, commands: [] },
+  ...(guildId
+    ? [
+        {
+          path: `/applications/${applicationId}/guilds/${guildId}/commands`,
+          commands: [],
+        },
+      ]
+    : []),
+];
 
 await Promise.all(
   commandTargets.map(({ path, commands }) =>
@@ -122,9 +105,7 @@ inviteUrl.searchParams.set("permissions", guildInstallPermissions);
 inviteUrl.searchParams.set("integration_type", DISCORD_GUILD_INSTALL);
 
 console.log("Updated Discord Guild Install default settings.");
-console.log(
-  `Registered /ask ${guildId ? `for guild ${guildId}` : "globally"}.`,
-);
+console.log("Cleared application commands; use guild mentions and replies.");
 console.log(`Scopes: ${guildInstallScopes.join(", ")}`);
 console.log(`Permissions: ${guildInstallPermissions} (${permissionNames})`);
 console.log(`Direct guild install URL: ${inviteUrl.toString()}`);

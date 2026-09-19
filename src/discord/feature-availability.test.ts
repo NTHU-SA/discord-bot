@@ -1,107 +1,41 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { expect, test } from "bun:test";
+import { FeatureAvailabilityStore } from "./feature-availability";
 
-import {
-  defaultFeatureAvailability,
-  featureAvailabilityFile,
-  FeatureAvailabilityStore,
-} from "./feature-availability";
-
-const directories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    directories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true })),
-  );
-});
-
-async function store(environment: NodeJS.ProcessEnv = {}) {
-  const directory = await mkdtemp(join(tmpdir(), "minisago-features-"));
-  directories.push(directory);
-  return {
-    directory,
-    store: new FeatureAvailabilityStore(
-      join(directory, "features.json"),
-      environment,
-    ),
+test("deployment coverage requires a server and gates ambient reactions separately", () => {
+  const env = {
+    MINISAGO_CHATBOT_OWNER_USER_ID: "123456789012345678",
+    MINISAGO_CHATBOT_GUILD_IDS: "223456789012345678",
+    MINISAGO_CHATBOT_CHANNEL_IDS: "323456789012345678",
   };
-}
-
-describe("feature availability", () => {
-  test("uses persistent state by default in production", () => {
-    expect(featureAvailabilityFile({ NODE_ENV: "production" })).toBe(
-      "/app/state/feature-availability.json",
-    );
-    expect(featureAvailabilityFile({ NODE_ENV: "development" })).toBe(
-      ".data/feature-availability.json",
-    );
-    expect(
-      featureAvailabilityFile({
-        NODE_ENV: "production",
-        MINISAGO_FEATURE_AVAILABILITY_FILE: "/custom/features.json",
-      }),
-    ).toBe("/custom/features.json");
-  });
-
-  test("preserves the old environment coverage as initial policy", () => {
-    const snapshot = defaultFeatureAvailability({
-      MINISAGO_CHATBOT_GUILD_IDS: "917436845187563610",
-      MINISAGO_CHATBOT_CHANNEL_IDS: "1517766866964316201",
+  const coverage = new FeatureAvailabilityStore(env);
+  expect(
+    coverage.isEnabled("chatbot", { guildId: env.MINISAGO_CHATBOT_GUILD_IDS }),
+  ).toBe(true);
+  expect(coverage.isEnabled("chatbot", { guildId: "423456789012345678" })).toBe(
+    false,
+  );
+  expect(
+    coverage.isEnabled("chatbot", {
+      channelId: env.MINISAGO_CHATBOT_CHANNEL_IDS,
+    }),
+  ).toBe(false);
+  expect(
+    coverage.isEnabled("chatbot", {
+      guildId: "423456789012345678",
+      channelId: env.MINISAGO_CHATBOT_CHANNEL_IDS,
+    }),
+  ).toBe(true);
+  expect(
+    coverage.isEnabled("ambient_reactions", {
+      guildId: env.MINISAGO_CHATBOT_GUILD_IDS,
+    }),
+  ).toBe(false);
+  expect(
+    new FeatureAvailabilityStore({
+      ...env,
       MINISAGO_AMBIENT_REACTIONS_ENABLED: "true",
-    });
-
-    expect(snapshot.features.chatbot.rules).toEqual([
-      { scope: "guild", targetId: "917436845187563610", enabled: true },
-      { scope: "channel", targetId: "1517766866964316201", enabled: true },
-    ]);
-    expect(snapshot.features.ambient_reactions.rules).toEqual(
-      snapshot.features.chatbot.rules,
-    );
-    expect(snapshot.features.trip_planner.defaultEnabled).toBe(false);
-    expect(Object.keys(snapshot.features)).toEqual([
-      "chatbot",
-      "ambient_reactions",
-      "trip_planner",
-    ]);
-  });
-
-  test("uses channel rules before guild rules and persists changes", async () => {
-    const { directory, store: availability } = await store();
-    const guildId = "917436845187563610";
-    const channelId = "1517766866964316201";
-
-    await availability.configure({
-      feature: "chatbot",
-      scope: "guild",
-      targetId: guildId,
-      action: "enable",
-    });
-    await availability.configure({
-      feature: "chatbot",
-      scope: "channel",
-      targetId: channelId,
-      action: "disable",
-    });
-
-    expect(availability.isEnabled("chatbot", { guildId })).toBe(true);
-    expect(availability.isEnabled("chatbot", { guildId, channelId })).toBe(
-      false,
-    );
-    const reloaded = new FeatureAvailabilityStore(
-      join(directory, "features.json"),
-    );
-    expect(reloaded.isEnabled("chatbot", { guildId, channelId })).toBe(false);
-
-    await reloaded.configure({
-      feature: "chatbot",
-      scope: "channel",
-      targetId: channelId,
-      action: "inherit",
-    });
-    expect(reloaded.isEnabled("chatbot", { guildId, channelId })).toBe(true);
-  });
+    }).isEnabled("ambient_reactions", {
+      guildId: env.MINISAGO_CHATBOT_GUILD_IDS,
+    }),
+  ).toBe(true);
 });

@@ -236,18 +236,17 @@ describe("Discord chatbot", () => {
       expect(routeJob.job.capabilities).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            id: "channel_messaging",
-            tools: ["send_channel_message"],
-          }),
-          expect.objectContaining({
-            id: "feature_availability",
-            tools: [
-              "list_feature_availability",
-              "configure_feature_availability",
-            ],
+            id: "discord_context",
+            tools: ["resolve_context"],
           }),
         ]),
       );
+      expect(
+        routeJob.job.capabilities.map((entry: { id: string }) => entry.id),
+      ).not.toContain("channel_messaging");
+      expect(
+        routeJob.job.capabilities.map((entry: { id: string }) => entry.id),
+      ).not.toContain("feature_availability");
       const traceJob = await waitFor(() =>
         sent
           .map((value) => JSON.parse(value))
@@ -996,7 +995,7 @@ describe("Discord chatbot", () => {
         BOT_ID,
         ACCESS_CONFIG,
       ),
-    ).toBe("dm");
+    ).toBeNull();
     expect(
       chatbotAddressingMode(
         { ...base, content: "她怎麼會這樣", mentions: [] },
@@ -1009,6 +1008,7 @@ describe("Discord chatbot", () => {
   test("treats replies that ping MiniSago as chatbot requests", () => {
     const message = {
       id: "reply-1",
+      guild_id: "917436845187563610",
       channel_id: "channel-1",
       content: "再找一次",
       timestamp: "2026-07-20T11:00:00.000Z",
@@ -1055,7 +1055,7 @@ describe("Discord chatbot", () => {
     ).toBeNull();
   });
 
-  test("treats only the owner's unmentioned DMs as chatbot requests", () => {
+  test("ignores direct messages from the owner and community", () => {
     const directMessage = {
       id: "dm-1",
       channel_id: "dm-channel-1",
@@ -1064,9 +1064,9 @@ describe("Discord chatbot", () => {
       author: { id: "917446775873343600", username: "Hsi" },
     };
 
-    expect(extractChatbotRequest(directMessage, BOT_ID, ACCESS_CONFIG)).toBe(
-      "幫我找一下",
-    );
+    expect(
+      extractChatbotRequest(directMessage, BOT_ID, ACCESS_CONFIG),
+    ).toBeNull();
     expect(
       extractChatbotRequest(
         {
@@ -1149,7 +1149,9 @@ describe("Discord chatbot", () => {
     expect(
       isChatbotAuthorized("917446775873343600", ACCESS_CONFIG, "other-guild"),
     ).toBe(true);
-    expect(isChatbotAuthorized("917446775873343600", ACCESS_CONFIG)).toBe(true);
+    expect(isChatbotAuthorized("917446775873343600", ACCESS_CONFIG)).toBe(
+      false,
+    );
   });
 
   test("allows community code questions into the read-only chat path", async () => {
@@ -1236,41 +1238,6 @@ describe("Discord chatbot", () => {
     expect(handled).toBe(false);
   });
 
-  test("routes slash command failures through the private responder", async () => {
-    const responses: Array<string | string[] | null> = [];
-    const discordPaths: string[] = [];
-    const handled = await handleChatbotMention({
-      message: {
-        id: "interaction-1",
-        channel_id: "channel-1",
-        guild_id: "917436845187563610",
-        content: "private question",
-        timestamp: "2026-08-18T11:00:00.000Z",
-        author: { id: "member-1", username: "Member" },
-      },
-      botUserId: BOT_ID,
-      accessConfig: ACCESS_CONFIG,
-      discordRequest: async (path) => {
-        discordPaths.push(path);
-        return undefined as never;
-      },
-      invocation: {
-        request: "private question",
-        addressingMode: "mention",
-        chatOnly: true,
-        recentContext: true,
-        silent: true,
-        respond: async (content) => {
-          responses.push(content);
-        },
-      },
-    });
-
-    expect(handled).toBe(true);
-    expect(discordPaths).toEqual([]);
-    expect(responses).toEqual(["我現在沒接上工作機 晚點再叫我一次 💤"]);
-  });
-
   test("gives unauthorized guild members a safe Chinese reply", async () => {
     const requests: Array<{ path: string; body: unknown }> = [];
     const handled = await handleChatbotMention({
@@ -1349,7 +1316,7 @@ describe("Discord chatbot", () => {
     });
   });
 
-  test("responds to the owner's DM without requiring a mention", async () => {
+  test("does not dispatch or answer owner DMs", async () => {
     const requests: Array<{ path: string; body: unknown }> = [];
     const handled = await handleChatbotMention({
       message: {
@@ -1370,14 +1337,8 @@ describe("Discord chatbot", () => {
       },
     });
 
-    expect(handled).toBe(true);
-    expect(requests.at(-1)).toEqual({
-      path: "/channels/dm-channel-1/messages",
-      body: {
-        content: "我現在沒接上工作機 晚點再叫我一次 💤",
-        allowed_mentions: { parse: [] },
-      },
-    });
+    expect(handled).toBe(false);
+    expect(requests).toEqual([]);
   });
 
   test("uses a reply when newer channel messages make the relationship unclear", async () => {
