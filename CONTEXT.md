@@ -1,25 +1,9 @@
-# MiniSago
+# NTHUSA Discord bot
 
-MiniSago receives Discord requests, assigns them to authenticated workers, and returns bounded results under hosted authority.
+This fork is maintained in `NTHU-SA/discord-bot`. It receives guild Discord requests, assigns authorized jobs to the Linux worker, and returns results through the core. See `docs/nthu-sa-fork-scope.md` for the selected features and `docs/nthusa-hosting.md` for operator setup.
 
-## Language
+A **workflow** reserves one worker across related jobs. An **answer job** produces a chat reply or performs owner-authorized repository work. An **execution route job** classifies an owner's request before an answer job. A **trace lookup job** retrieves bounded observable metadata about an earlier answer. A **social action job** decides whether to react to a buffered conversation.
 
-**Workflow**:
-A reservation that keeps related jobs on one worker while a Discord request is routed and answered.
-_Avoid_: Session, task
+Core and worker share protocol version 37. `oracle` is the internal Linux development route/worker identifier; `MINISAGO_*` remains the technical environment prefix. Neither implies access to the upstream deployment. NTHUSA chooses the final display name through `NTHUSA_BOT_NAME` and configures the avatar in its own Discord application.
 
-**Answer job**:
-A worker request to produce MiniSago's response through the selected chat, Mac, or Oracle route.
-_Avoid_: Chatbot job, request job
-
-**Execution route job**:
-A worker request that classifies an owner's request before an answer job is created.
-_Avoid_: Router job, planning job
-
-**Trace lookup job**:
-A worker request for bounded observable metadata about an earlier answer.
-_Avoid_: History job, reasoning lookup
-
-**Social action job**:
-A worker request that decides whether MiniSago should quietly react to a buffered Discord conversation.
-_Avoid_: Ambient job, reaction job
+Do not reintroduce removed features or personal destinations while porting upstream changes. Keep Google/Discord authorization, Calendar confirmation, and core/worker credential separation intact. Host infrastructure and account ownership must be verified with NTHUSA rather than inferred from upstream documentation.

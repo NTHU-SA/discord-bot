@@ -1,6 +1,6 @@
 # Prompt case evaluation
 
-This is an opt-in live-model suite for prompt changes. It compiles the same prompt plan and output schema as the worker, runs Codex with mock MiniSago MCP tools, and checks observable behavior such as tool selection, inline emoji, non-empty replies, and artifact delivery.
+This is an opt-in live-model suite for prompt changes. It compiles the same prompt plan and output schema as the worker, runs Codex with mock NTHUSA bot MCP tools, and checks observable behavior such as tool selection, inline emoji, non-empty replies, and artifact delivery.
 
 The suite never contacts Discord or mutates production state. Web search is disabled. It is not part of normal unit tests because model runs are slow, paid, and nondeterministic.
 
