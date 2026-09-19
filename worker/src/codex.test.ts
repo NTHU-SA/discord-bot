@@ -6,7 +6,6 @@ import type {
   ChatbotMcpTraceCall,
   CodexJob,
   ExecutionRouteJob,
-  MacAnswerJob,
   OracleAnswerJob,
   SocialActionJob,
 } from "../../contracts/worker-contract";
@@ -20,8 +19,6 @@ import {
   CHAT_LOCAL_TOOLS_CONFIG,
   CHATBOT_MODEL_VERBOSITY,
   CHANNEL_QUIET_MCP_APPROVAL_CONFIG,
-  CHANNEL_MESSAGE_MCP_APPROVAL_CONFIG,
-  canUseMacFiles as canUseMacFilesWithConfig,
   canUseMediaTools,
   canUseDeveloperTools as canUseDeveloperToolsWithConfig,
   codexFailureMessage,
@@ -33,8 +30,6 @@ import {
   EXPRESSION_ADD_MCP_APPROVAL_CONFIG,
   SERVER_MEMORY_MCP_APPROVAL_CONFIG,
   EXECUTION_ROUTE_OUTPUT_SCHEMA,
-  MAC_FILE_ANSWER_OUTPUT_SCHEMA,
-  macFilesMcpConfig,
   mediaMcpConfig,
   minisagoMcpApprovalMode,
   NTHU_CAMPUS_MCP_URL,
@@ -46,13 +41,9 @@ import {
   progressForCodexEvent,
   SOCIAL_ACTION_OUTPUT_SCHEMA,
   SOCIAL_ACTION_PROFILE,
-  StreamingReplyParser,
-  TRIP_PLAN_EDIT_MCP_APPROVAL_CONFIG,
   CALENDAR_CREATE_MCP_APPROVAL_CONFIG,
   CALENDAR_EDIT_MCP_APPROVAL_CONFIG,
   usesOuterSeatbelt,
-  VOICE_CHATBOT_PROFILE,
-  VOICE_ANSWER_OUTPUT_SCHEMA,
 } from "./codex";
 
 const ACCESS_CONFIG: ChatbotAccessConfig = {
@@ -65,8 +56,6 @@ const assertChatbotJobAllowed = (job: CodexJob) =>
   assertChatbotJobAllowedWithConfig(job, ACCESS_CONFIG);
 const canUseDeveloperTools = (job: CodexJob) =>
   canUseDeveloperToolsWithConfig(job, ACCESS_CONFIG);
-const canUseMacFiles = (job: CodexJob) =>
-  canUseMacFilesWithConfig(job, ACCESS_CONFIG);
 const codexProfileForJob = (job: CodexJob) =>
   codexProfileForJobWithConfig(job, ACCESS_CONFIG);
 
@@ -136,17 +125,6 @@ function oracleJob(overrides: Partial<OracleAnswerJob> = {}): OracleAnswerJob {
 }
 
 describe("Codex chatbot runner", () => {
-  test("streams decoded text from the structured voice reply", () => {
-    const deltas: string[] = [];
-    const parser = new StreamingReplyParser((delta) => deltas.push(delta));
-
-    parser.push('{"rep');
-    parser.push('ly":"今日は晴れ。\\n次は\\u732b');
-    parser.push('だよ。","ignored":true}');
-
-    expect(deltas.join("")).toBe("今日は晴れ。\n次は猫だよ。");
-  });
-
   test("turns Codex JSONL into bounded public progress", () => {
     expect(
       progressForCodexEvent(
@@ -190,17 +168,11 @@ describe("Codex chatbot runner", () => {
     expect(EMOJI_RENAME_MCP_APPROVAL_CONFIG).toBe(
       'mcp_servers.minisago.tools.rename_guild_emoji.approval_mode="approve"',
     );
-    expect(CHANNEL_MESSAGE_MCP_APPROVAL_CONFIG).toBe(
-      'mcp_servers.minisago.tools.send_channel_message.approval_mode="approve"',
-    );
     expect(SERVER_MEMORY_MCP_APPROVAL_CONFIG).toBe(
       'mcp_servers.minisago.tools.manage_server_memory.approval_mode="approve"',
     );
     expect(CHANNEL_QUIET_MCP_APPROVAL_CONFIG).toBe(
       'mcp_servers.minisago.tools.pause_channel_activity.approval_mode="approve"',
-    );
-    expect(TRIP_PLAN_EDIT_MCP_APPROVAL_CONFIG).toBe(
-      'mcp_servers.minisago.tools.edit_trip_plan.approval_mode="approve"',
     );
   });
 
@@ -289,37 +261,6 @@ describe("Codex chatbot runner", () => {
     });
   });
 
-  test("configures typed Mac file search with allowlisted roots", () => {
-    expect(
-      macFilesMcpConfig(
-        ["/Users/hsi/Documents", "/Users/hsi/Downloads"],
-        "/usr/local/bin/bun",
-        "/app/worker/src/mac/mac-files-mcp.ts",
-      ),
-    ).toEqual({
-      arguments: [
-        "--config",
-        'mcp_servers.mac_files.command="/usr/local/bin/bun"',
-        "--config",
-        'mcp_servers.mac_files.args=["/app/worker/src/mac/mac-files-mcp.ts"]',
-        "--config",
-        'mcp_servers.mac_files.env_vars=["MINISAGO_MAC_FILE_ROOTS"]',
-        "--config",
-        "mcp_servers.mac_files.required=true",
-        "--config",
-        'mcp_servers.mac_files.default_tools_approval_mode="auto"',
-        "--config",
-        "mcp_servers.mac_files.startup_timeout_sec=10",
-        "--config",
-        "mcp_servers.mac_files.tool_timeout_sec=30",
-      ],
-      environment: {
-        MINISAGO_MAC_FILE_ROOTS:
-          '["/Users/hsi/Documents","/Users/hsi/Downloads"]',
-      },
-    });
-  });
-
   test("gives developer tools their read-only sandbox dependencies", () => {
     expect(
       developerFilesystemPermissions(
@@ -357,10 +298,6 @@ describe("Codex chatbot runner", () => {
       model: "gpt-5.6-sol",
       reasoningEffort: "medium",
     });
-    expect(VOICE_CHATBOT_PROFILE).toEqual({
-      model: "gpt-5.6-luna",
-      reasoningEffort: "low",
-    });
     expect(OWNER_ROUTER_PROFILE).toEqual({
       model: "gpt-5.6-luna",
       reasoningEffort: "low",
@@ -373,13 +310,9 @@ describe("Codex chatbot runner", () => {
     expect(EXECUTION_ROUTE_OUTPUT_SCHEMA.required).toContain("threadTitle");
     expect(EXECUTION_ROUTE_OUTPUT_SCHEMA.properties.route.enum).toEqual([
       "chat",
-      "mac",
       "oracle",
     ]);
     expect(codexProfileForJob(job)).toBe(COMMUNITY_CHATBOT_PROFILE);
-    expect(codexProfileForJob({ ...job, streamReply: true })).toBe(
-      VOICE_CHATBOT_PROFILE,
-    );
     expect(
       codexProfileForJob(
         oracleJob({
@@ -488,12 +421,6 @@ describe("Codex chatbot runner", () => {
     expect(outputSchemaForJob(answerJob)).toBe(ARTIFACT_ANSWER_OUTPUT_SCHEMA);
     expect(ARTIFACT_ANSWER_OUTPUT_SCHEMA.properties.artifacts.maxItems).toBe(1);
     expect(ANSWER_OUTPUT_SCHEMA).not.toHaveProperty("anyOf");
-
-    const voiceJob = { ...answerJob, streamReply: true };
-    expect(outputSchemaForJob(voiceJob)).toBe(VOICE_ANSWER_OUTPUT_SCHEMA);
-    expect(buildCodexPrompt(voiceJob, [], [])).toContain(
-      "brief, natural Japanese reply",
-    );
   });
 
   test("uses native Codex output in the requester's language for Discord coding threads", () => {
@@ -524,29 +451,6 @@ describe("Codex chatbot runner", () => {
     expect(prompt).toContain("Fix the Discord reply. English only.");
     expect(prompt).toContain("請幫忙修好它");
     expect(prompt).not.toContain("referenceResolution");
-  });
-
-  test("gives only owner Mac answers the bounded file output", () => {
-    const macJob: MacAnswerJob = {
-      ...job,
-      requesterUserId: ACCESS_CONFIG.ownerUserId,
-      purpose: "answer",
-      executionRoute: "mac",
-    };
-    const roots = ["/Users/hsi/Documents", "/Users/hsi/Downloads"];
-    const prompt = buildCodexPrompt(macJob, [], [], undefined, roots);
-
-    expect(canUseMacFiles(macJob)).toBe(true);
-    expect(canUseMacFiles({ ...macJob, requesterUserId: "someone-else" })).toBe(
-      false,
-    );
-    expect(prompt).toContain("explicitly routed to Hsi's Mac");
-    expect(prompt).toContain("Use the mac_files.search_files tool");
-    expect(prompt).toContain("Do not run commands or inspect file contents");
-    expect(prompt).toContain(JSON.stringify(roots));
-    expect(prompt).not.toContain("its ID is in artifacts");
-    expect(outputSchemaForJob(macJob)).toBe(MAC_FILE_ANSWER_OUTPUT_SCHEMA);
-    expect(MAC_FILE_ANSWER_OUTPUT_SCHEMA.properties.files.maxItems).toBe(1);
   });
 
   test("reports structured Codex failures before stderr warnings", () => {
@@ -657,8 +561,12 @@ describe("Codex chatbot runner", () => {
       }),
     ).toThrow("Requester cannot use the dev capability.");
     expect(() =>
-      assertChatbotJobAllowed({ ...job, executionRoute: "mac" }),
-    ).toThrow("Requester cannot use the mac capability.");
+      assertChatbotJobAllowed({
+        ...job,
+        executionRoute: "oracle",
+        repository: "owner/repo",
+      }),
+    ).toThrow("Requester cannot use the dev capability.");
     expect(() => assertChatbotJobAllowed(executionRouteJob())).toThrow(
       "Requester cannot route owner execution.",
     );
@@ -905,13 +813,6 @@ describe("Codex chatbot runner", () => {
     expect(profile).toContain(
       '(allow process-exec (literal "/Applications/ChatGPT \\"Beta\\"/Contents/Resources/codex"))',
     );
-  });
-
-  test("lets Codex apply its own sandbox for Mac file commands", () => {
-    expect(usesOuterSeatbelt(false, false, "darwin")).toBe(true);
-    expect(usesOuterSeatbelt(false, true, "darwin")).toBe(false);
-    expect(usesOuterSeatbelt(true, false, "darwin")).toBe(false);
-    expect(usesOuterSeatbelt(false, false, "linux")).toBe(false);
   });
 
   test("keeps the Codex launcher and Bun Node shim on the restricted path", () => {

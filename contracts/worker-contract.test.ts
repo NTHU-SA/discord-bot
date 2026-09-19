@@ -68,6 +68,19 @@ describe("chatbot job protocol", () => {
     ).toBe("answer");
   });
 
+  test("rejects removed Mac and live voice job modes", () => {
+    const answer = {
+      ...common,
+      purpose: "answer",
+      executionRoute: "chat",
+      mcpAccessToken: "token",
+    };
+    expect(parseChatbotJob({ ...answer, executionRoute: "mac" })).toBeNull();
+    expect(parseChatbotJob({ ...answer, streamReply: true })).toBeNull();
+    expect(parseChatbotJob({ ...answer, addressingMode: "dm" })).toBeNull();
+    expect(parseChatbotJob({ ...answer, addressingMode: "voice" })).toBeNull();
+  });
+
   test("rejects missing discriminants and required answer fields", () => {
     expect(parseChatbotJob(common)).toBeNull();
     expect(

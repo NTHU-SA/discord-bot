@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ServerWebSocket } from "bun";
 
 import type { ChatbotAccessConfig } from "./access";
-import { macAgentBridge, type MacAgentSocketData } from "./bridge";
+import { workerBridge, type WorkerSocketData } from "./bridge";
 import { CHATBOT_PROTOCOL_VERSION } from "../../contracts/worker-contract";
 import { enforceFirstPersonIdentity } from "../../contracts/answer-contract";
 import { ChatbotMediaRegistry } from "./media-assets";
@@ -142,7 +142,7 @@ describe("Discord chatbot", () => {
       data: { authenticated: false },
       send: (message: string) => sent.push(message),
       close: () => undefined,
-    } as unknown as ServerWebSocket<MacAgentSocketData>;
+    } as unknown as ServerWebSocket<WorkerSocketData>;
     const discordCalls: Array<{
       path: string;
       method?: string;
@@ -164,8 +164,8 @@ describe("Discord chatbot", () => {
     } as unknown as FeatureAvailabilityStore;
 
     try {
-      macAgentBridge.open(socket);
-      macAgentBridge.message(
+      workerBridge.open(socket);
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "authenticate",
@@ -176,7 +176,7 @@ describe("Discord chatbot", () => {
           chatbotRepository: "sago-cream/mini-sago",
         }),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({ type: "availability", available: true, capacity: 1 }),
       );
@@ -219,7 +219,7 @@ describe("Discord chatbot", () => {
               value.type === "job" && value.job.purpose === "execution_route",
           ),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -255,7 +255,7 @@ describe("Discord chatbot", () => {
               value.type === "job" && value.job.purpose === "trace_lookup",
           ),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -300,7 +300,7 @@ describe("Discord chatbot", () => {
         )?.body,
       ).toMatchObject({ name: "Stream Codex task progress" });
 
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "progress",
@@ -312,7 +312,7 @@ describe("Discord chatbot", () => {
           },
         }),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "progress",
@@ -324,7 +324,7 @@ describe("Discord chatbot", () => {
           },
         }),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -383,7 +383,7 @@ describe("Discord chatbot", () => {
       expect(resumedJob.job.developerTask.resumeSessionId).toBe(
         "019-coding-session",
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "progress",
@@ -418,7 +418,7 @@ describe("Discord chatbot", () => {
               value.request === "focus on the setup guide",
           ),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "steer_result",
@@ -428,7 +428,7 @@ describe("Discord chatbot", () => {
         }),
       );
       expect(await steeringHandled).toBe(true);
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -500,7 +500,7 @@ describe("Discord chatbot", () => {
               value.type === "steer" && value.jobId === nextTurnJob.job.id,
           ),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -523,7 +523,7 @@ describe("Discord chatbot", () => {
       expect(fallbackJob.job.developerTask.resumeSessionId).toBe(
         "019-coding-session",
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "progress",
@@ -535,7 +535,7 @@ describe("Discord chatbot", () => {
           },
         }),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -593,7 +593,7 @@ describe("Discord chatbot", () => {
               value.job.request === "review the release notes",
           ),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -643,7 +643,7 @@ describe("Discord chatbot", () => {
               value.job.request === "check the changelog too",
           ),
       );
-      macAgentBridge.message(
+      workerBridge.message(
         socket,
         JSON.stringify({
           type: "result",
@@ -659,7 +659,7 @@ describe("Discord chatbot", () => {
         ),
       );
     } finally {
-      macAgentBridge.close(socket);
+      workerBridge.close(socket);
       if (oldWorkerSecret === undefined)
         delete process.env.MINISAGO_WORKER_BRIDGE_SECRET;
       else process.env.MINISAGO_WORKER_BRIDGE_SECRET = oldWorkerSecret;

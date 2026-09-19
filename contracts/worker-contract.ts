@@ -1,8 +1,8 @@
-export const CHATBOT_PROTOCOL_VERSION = 36;
+export const CHATBOT_PROTOCOL_VERSION = 37;
 export const CHATBOT_JOB_TIMEOUT_MS = 120_000;
 export const CHATBOT_DEV_JOB_TIMEOUT_MS = 15 * 60_000;
 
-export type ChatbotWorkerCapability = "chat" | "dev" | "mac";
+export type ChatbotWorkerCapability = "chat" | "dev";
 export type ChatbotFailureKind = "unavailable" | "timeout" | "internal";
 
 export type ChatbotAttachment = {
@@ -33,8 +33,8 @@ export type ChatbotReaction = {
   me?: boolean;
 };
 
-export type ChatbotExecutionRoute = "chat" | "mac" | "oracle";
-export type ChatbotAddressingMode = "mention" | "reply" | "dm" | "continuation";
+export type ChatbotExecutionRoute = "chat" | "oracle";
+export type ChatbotAddressingMode = "mention" | "reply" | "continuation";
 
 export type CodexUsageWindow = {
   label: string;
@@ -47,15 +47,6 @@ export type CodexUsageWindow = {
 export type CodexUsageSnapshot = {
   windows: CodexUsageWindow[];
   updatedAt: string;
-};
-
-export type WorkerSkillbookStatus = {
-  ok: boolean;
-  syncing: boolean;
-  skills: number;
-  revision?: string;
-  lastSyncedAt?: string;
-  error?: string;
 };
 
 export type ChatbotToolCapability = {
@@ -213,18 +204,11 @@ type AnswerJobBase = ChatbotJobBase &
     availableTools?: ChatbotToolCapability[];
     addressingMode?: ChatbotAddressingMode;
     serverMemory?: ChatbotServerMemory;
-    streamReply?: boolean;
     socialActionCandidateMessageIds?: never;
   };
 
 export type ChatAnswerJob = AnswerJobBase & {
   executionRoute: "chat";
-  repository?: never;
-  developerTask?: never;
-};
-
-export type MacAnswerJob = AnswerJobBase & {
-  executionRoute: "mac";
   repository?: never;
   developerTask?: never;
 };
@@ -239,7 +223,7 @@ export type OracleAnswerJob = AnswerJobBase & {
   };
 };
 
-export type AnswerJob = ChatAnswerJob | MacAnswerJob | OracleAnswerJob;
+export type AnswerJob = ChatAnswerJob | OracleAnswerJob;
 export type CodexJob = AnswerJob | ExecutionRouteJob | SocialActionJob;
 export type ChatbotJob = CodexJob | TraceLookupJob;
 
@@ -405,6 +389,7 @@ export function parseChatbotJob(value: unknown): ChatbotJob | null {
         ...EXECUTION_ROUTE_FORBIDDEN_FIELDS,
         "availableTools",
         "socialActionCandidateMessageIds",
+        "streamReply",
       ])
     ) {
       return null;
@@ -442,7 +427,7 @@ export function parseChatbotJob(value: unknown): ChatbotJob | null {
   if (
     typeof value.mcpAccessToken !== "string" ||
     value.mcpAccessToken.length === 0 ||
-    !["chat", "mac", "oracle"].includes(String(value.executionRoute)) ||
+    !["chat", "oracle"].includes(String(value.executionRoute)) ||
     (value.capabilities !== undefined &&
       (!Array.isArray(value.capabilities) ||
         !value.capabilities.every(isCapability))) ||
@@ -450,12 +435,10 @@ export function parseChatbotJob(value: unknown): ChatbotJob | null {
       (!Array.isArray(value.availableTools) ||
         !value.availableTools.every(isToolCapability))) ||
     (value.addressingMode !== undefined &&
-      !["mention", "reply", "dm", "continuation"].includes(
+      !["mention", "reply", "continuation"].includes(
         String(value.addressingMode),
       )) ||
     (value.serverMemory !== undefined && !isServerMemory(value.serverMemory)) ||
-    (value.streamReply !== undefined &&
-      typeof value.streamReply !== "boolean") ||
     !hasOnlyAbsent(value, [
       ...ROUTING_ONLY_FIELDS,
       "socialActionCandidateMessageIds",
@@ -477,10 +460,10 @@ export function parseChatbotJob(value: unknown): ChatbotJob | null {
   }
 
   if (!hasOnlyAbsent(value, ["repository", "developerTask"])) return null;
-  return value as ChatAnswerJob | MacAnswerJob;
+  return value as ChatAnswerJob;
 }
 
-export type MacAgentClientMessage =
+export type WorkerClientMessage =
   | {
       type: "authenticate";
       protocolVersion: number;
@@ -493,7 +476,6 @@ export type MacAgentClientMessage =
       type: "availability";
       available: boolean;
       capacity: number;
-      skillbook?: WorkerSkillbookStatus;
     }
   | {
       type: "heartbeat";
@@ -504,19 +486,9 @@ export type MacAgentClientMessage =
       usage: CodexUsageSnapshot | null;
     }
   | {
-      type: "skill_sync_result";
-      requestId: string;
-      status: WorkerSkillbookStatus;
-    }
-  | {
       type: "progress";
       jobId: string;
       progress: ChatbotTaskProgress;
-    }
-  | {
-      type: "answer_delta";
-      jobId: string;
-      delta: string;
     }
   | {
       type: "steer_result";
@@ -540,7 +512,7 @@ export type MacAgentClientMessage =
       stopped?: boolean;
     };
 
-export type MacAgentServerMessage =
+export type WorkerServerMessage =
   | {
       type: "authenticated";
       protocolVersion: number;
@@ -561,9 +533,5 @@ export type MacAgentServerMessage =
     }
   | {
       type: "codex_usage_request";
-      requestId: string;
-    }
-  | {
-      type: "skill_sync_request";
       requestId: string;
     };

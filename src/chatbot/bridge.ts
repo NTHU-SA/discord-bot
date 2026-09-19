@@ -11,13 +11,11 @@ import {
   type ChatbotTaskProgress,
   type ChatbotWorkerCapability,
   type CodexUsageSnapshot,
-  type MacAgentClientMessage,
-  type MacAgentServerMessage,
-  type WorkerSkillbookStatus,
+  type WorkerClientMessage,
+  type WorkerServerMessage,
 } from "../../contracts/worker-contract";
-import { CHATBOT_REPLY_MAX_CHARACTERS } from "../../contracts/answer-contract";
 
-export type MacAgentSocketData = {
+export type WorkerSocketData = {
   authenticated: boolean;
   workerId?: string;
 };
@@ -26,11 +24,9 @@ type PendingJob = {
   id: string;
   workerId: string;
   workflowId?: string;
-  resolve: (result: MacAgentJobResult) => void;
+  resolve: (result: WorkerJobResult) => void;
   timer: ReturnType<typeof setTimeout>;
   onProgress?: (progress: ChatbotTaskProgress) => void;
-  onReplyDelta?: (delta: string) => void;
-  replyCharacters: number;
   stopping?: boolean;
 };
 
@@ -56,10 +52,9 @@ type Worker = {
   chatbotRepository?: string;
   available: boolean;
   capacity: number;
-  skillbook?: WorkerSkillbookStatus;
 };
 
-type WorkerProfile = "oracle" | "mac";
+type WorkerProfile = "oracle";
 
 type WorkerPolicy = {
   workerId?: string;
@@ -71,7 +66,7 @@ type Workflow = {
   activeJobId?: string;
 };
 
-export type MacAgentJobResult =
+export type WorkerJobResult =
   | { ok: true; content: string; files?: ChatbotOutgoingFile[] }
   | {
       ok: false;
@@ -85,7 +80,7 @@ export type DispatchResult =
   | { status: "busy" }
   | {
       status: "accepted";
-      result: Promise<MacAgentJobResult>;
+      result: Promise<WorkerJobResult>;
       cancel: () => boolean;
     };
 
@@ -116,7 +111,7 @@ export type AcquireWorkflowResult =
   | { status: "busy" }
   | { status: "accepted"; workflow: WorkflowLease };
 
-type Socket = ServerWebSocket<MacAgentSocketData>;
+type Socket = ServerWebSocket<WorkerSocketData>;
 
 function safeEqual(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
@@ -130,13 +125,13 @@ function safeEqual(left: string, right: string) {
 
 function parseClientMessage(message: string | Buffer) {
   try {
-    return JSON.parse(message.toString()) as MacAgentClientMessage;
+    return JSON.parse(message.toString()) as WorkerClientMessage;
   } catch {
     return null;
   }
 }
 
-function send(socket: Socket, message: MacAgentServerMessage) {
+function send(socket: Socket, message: WorkerServerMessage) {
   socket.send(JSON.stringify(message));
 }
 
@@ -212,27 +207,6 @@ function validCodexUsage(value: unknown): value is CodexUsageSnapshot | null {
   );
 }
 
-function validSkillbookStatus(value: unknown): value is WorkerSkillbookStatus {
-  if (!value || typeof value !== "object") return false;
-  const status = value as WorkerSkillbookStatus;
-  return (
-    typeof status.ok === "boolean" &&
-    typeof status.syncing === "boolean" &&
-    Number.isInteger(status.skills) &&
-    status.skills >= 0 &&
-    status.skills <= 1_000 &&
-    (status.revision === undefined ||
-      (typeof status.revision === "string" &&
-        /^[a-f0-9]{40}$/u.test(status.revision))) &&
-    (status.lastSyncedAt === undefined ||
-      (typeof status.lastSyncedAt === "string" &&
-        status.lastSyncedAt.length <= 40 &&
-        Number.isFinite(Date.parse(status.lastSyncedAt)))) &&
-    (status.error === undefined ||
-      (typeof status.error === "string" && status.error.length <= 500))
-  );
-}
-
 function validTaskProgress(value: unknown): value is ChatbotTaskProgress {
   if (!value || typeof value !== "object") return false;
   const progress = value as ChatbotTaskProgress;
@@ -264,7 +238,9 @@ function repositoryKey(repository: string) {
 }
 
 function supports(worker: Worker, capabilities: ChatbotWorkerCapability[]) {
-  return worker.profile === "mac" || !capabilities.includes("mac");
+  return capabilities.every(
+    (capability) => capability === "chat" || capability === "dev",
+  );
 }
 
 function profilePriority(profile: WorkerProfile) {
@@ -285,12 +261,6 @@ function workerPolicy(secret: string): WorkerPolicy | null {
         profile: "oracle",
       },
     },
-    {
-      secret: configuredSecret("MINISAGO_MAC_BRIDGE_SECRET"),
-      policy: {
-        profile: "mac",
-      },
-    },
   ];
   const matches = policies.filter(
     (candidate) => candidate.secret && safeEqual(secret, candidate.secret),
@@ -298,7 +268,7 @@ function workerPolicy(secret: string): WorkerPolicy | null {
   return matches.length === 1 ? matches[0]!.policy : null;
 }
 
-export class MacAgentBridge {
+export class WorkerBridge {
   private workers = new Map<string, Worker>();
   private authenticationTimers = new WeakMap<
     Socket,
@@ -314,10 +284,7 @@ export class MacAgentBridge {
   private workflows = new Map<string, Workflow>();
 
   isConfigured() {
-    return Boolean(
-      configuredSecret("MINISAGO_MAC_BRIDGE_SECRET") ||
-      configuredSecret("MINISAGO_WORKER_BRIDGE_SECRET"),
-    );
+    return Boolean(configuredSecret("MINISAGO_WORKER_BRIDGE_SECRET"));
   }
 
   getStatus(capabilities: ChatbotWorkerCapability[] = ["chat"]) {
@@ -327,35 +294,15 @@ export class MacAgentBridge {
 
   getWorkerSummary() {
     const workers = [...this.workers.values()];
-    const skillbook = workers.find(
-      (worker) => worker.profile === "oracle",
-    )?.skillbook;
     return {
       connected: workers.length,
       available: workers.filter((worker) => worker.available).length,
       capacity: workers.reduce((total, worker) => total + worker.capacity, 0),
       active: this.pendingJobs.size,
-      mac: this.getStatus(["mac"]),
-      ...(skillbook ? { skillbook } : {}),
     };
   }
 
-  triggerOracleSkillSync() {
-    const worker = [...this.workers.values()].find(
-      (candidate) => candidate.profile === "oracle" && candidate.available,
-    );
-    if (!worker) return false;
-    if (worker.skillbook) {
-      worker.skillbook = { ...worker.skillbook, syncing: true };
-    }
-    send(worker.socket, {
-      type: "skill_sync_request",
-      requestId: randomUUID(),
-    });
-    return true;
-  }
-
-  handleUpgrade(request: Request, server: Server<MacAgentSocketData>) {
+  handleUpgrade(request: Request, server: Server<WorkerSocketData>) {
     if (!this.isConfigured()) {
       return new Response("本機連線服務尚未啟用", { status: 404 });
     }
@@ -374,18 +321,11 @@ export class MacAgentBridge {
     capabilities: ChatbotWorkerCapability[] = [
       job.executionRoute === "oracle" ? "dev" : "chat",
     ],
-    onReplyDelta?: (delta: string) => void,
     onProgress?: (progress: ChatbotTaskProgress) => void,
   ): DispatchResult {
     const selected = this.selectWorker(capabilities, undefined, job.repository);
     if (selected.status !== "accepted") return selected;
-    return this.dispatchJob(
-      job,
-      selected.worker.id,
-      undefined,
-      onProgress,
-      onReplyDelta,
-    );
+    return this.dispatchJob(job, selected.worker.id, undefined, onProgress);
   }
 
   acquireWorkflow(
@@ -480,18 +420,10 @@ export class MacAgentBridge {
     if (message.type === "heartbeat") return;
 
     if (message.type === "availability") {
-      if (
-        message.skillbook !== undefined &&
-        !validSkillbookStatus(message.skillbook)
-      ) {
-        socket.close(4002, "Invalid availability");
-        return;
-      }
       worker.available = message.available;
       worker.capacity = Number.isFinite(message.capacity)
         ? Math.max(1, Math.min(16, Math.floor(message.capacity)))
         : 1;
-      if (message.skillbook) worker.skillbook = message.skillbook;
       return;
     }
 
@@ -502,23 +434,6 @@ export class MacAgentBridge {
         validTaskProgress(message.progress)
       ) {
         pendingJob.onProgress?.(message.progress);
-      }
-      return;
-    }
-
-    if (message.type === "answer_delta") {
-      const pendingJob = this.pendingJobs.get(message.jobId);
-      if (
-        pendingJob?.workerId === worker.id &&
-        !pendingJob.stopping &&
-        typeof message.delta === "string" &&
-        message.delta.length > 0 &&
-        message.delta.length <= CHATBOT_REPLY_MAX_CHARACTERS &&
-        pendingJob.replyCharacters + message.delta.length <=
-          CHATBOT_REPLY_MAX_CHARACTERS
-      ) {
-        pendingJob.replyCharacters += message.delta.length;
-        pendingJob.onReplyDelta?.(message.delta);
       }
       return;
     }
@@ -545,17 +460,6 @@ export class MacAgentBridge {
     if (message.type === "codex_usage_result") {
       this.finishUsageRequest(worker, message);
       return;
-    }
-
-    if (message.type === "skill_sync_result") {
-      if (
-        typeof message.requestId === "string" &&
-        message.requestId.length <= 128 &&
-        validSkillbookStatus(message.status)
-      ) {
-        worker.skillbook = message.status;
-        return;
-      }
     }
 
     socket.close(4002, "Unexpected message");
@@ -617,7 +521,6 @@ export class MacAgentBridge {
     workerId: string,
     workflowId?: string,
     onProgress?: (progress: ChatbotTaskProgress) => void,
-    onReplyDelta?: (delta: string) => void,
   ): DispatchResult {
     const worker = this.workers.get(workerId);
     if (!worker?.available) return { status: "offline" };
@@ -633,7 +536,7 @@ export class MacAgentBridge {
       return { status: "busy" };
     }
 
-    const result = new Promise<MacAgentJobResult>((resolve) => {
+    const result = new Promise<WorkerJobResult>((resolve) => {
       const timeoutMs =
         job.executionRoute === "oracle" && job.purpose === "answer"
           ? CHATBOT_DEV_JOB_TIMEOUT_MS
@@ -660,8 +563,6 @@ export class MacAgentBridge {
         resolve,
         timer,
         onProgress,
-        onReplyDelta,
-        replyCharacters: 0,
       };
       this.pendingJobs.set(job.id, pendingJob);
       if (workflowId) {
@@ -793,7 +694,7 @@ export class MacAgentBridge {
     return { status: "accepted", worker: available[0]! };
   }
 
-  private authenticate(socket: Socket, message: MacAgentClientMessage) {
+  private authenticate(socket: Socket, message: WorkerClientMessage) {
     const policy =
       message.type === "authenticate" ? workerPolicy(message.secret) : null;
 
@@ -837,7 +738,6 @@ export class MacAgentBridge {
       chatbotRepository: message.chatbotRepository,
       available: false,
       capacity: 1,
-      skillbook: undefined,
     };
     this.workers.set(worker.id, worker);
     this.armHeartbeatTimeout(worker);
@@ -849,7 +749,7 @@ export class MacAgentBridge {
 
   private finishJob(
     worker: Worker,
-    message: Extract<MacAgentClientMessage, { type: "result" }>,
+    message: Extract<WorkerClientMessage, { type: "result" }>,
   ) {
     const pendingJob = this.pendingJobs.get(message.jobId);
     if (!pendingJob || pendingJob.workerId !== worker.id) return;
@@ -885,7 +785,7 @@ export class MacAgentBridge {
 
   private finishUsageRequest(
     worker: Worker,
-    message: Extract<MacAgentClientMessage, { type: "codex_usage_result" }>,
+    message: Extract<WorkerClientMessage, { type: "codex_usage_result" }>,
   ) {
     const pending = this.pendingUsageRequests.get(message.requestId);
     if (!pending || pending.workerId !== worker.id) return;
@@ -973,16 +873,16 @@ export class MacAgentBridge {
   }
 }
 
-export const macAgentBridge = new MacAgentBridge();
+export const workerBridge = new WorkerBridge();
 
-export const macAgentWebSocketHandler = {
+export const workerWebSocketHandler = {
   open(socket: Socket) {
-    macAgentBridge.open(socket);
+    workerBridge.open(socket);
   },
   message(socket: Socket, message: string | Buffer) {
-    macAgentBridge.message(socket, message);
+    workerBridge.message(socket, message);
   },
   close(socket: Socket) {
-    macAgentBridge.close(socket);
+    workerBridge.close(socket);
   },
 };

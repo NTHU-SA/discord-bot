@@ -4,21 +4,19 @@ import {
   type ChatbotFailureKind,
   type ChatbotJob,
   type ChatbotMcpTraceCall,
-  type MacAgentClientMessage,
-  type MacAgentServerMessage,
+  type WorkerClientMessage,
+  type WorkerServerMessage,
 } from "../../contracts/worker-contract";
-import type { MacAgentConfig } from "./config";
+import type { WorkerConfig } from "./config";
 import {
   checkCodexAuthentication,
   codexProfileForJob,
   PROMPT_VERSION,
   runCodexJob,
 } from "./codex";
-import { SessionMonitor } from "./mac/session-monitor";
 import { ChatbotTraceStore } from "./trace-store";
 import { readCodexUsage } from "./codex-usage";
 import { CodexAppServerManager } from "./codex-app-server";
-import { SkillbookSync } from "./skillbook";
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const AUTH_RETRY_MS = 30_000;
@@ -75,14 +73,14 @@ function parseServerMessage(value: unknown) {
       record.type === "authenticated" &&
       typeof record.protocolVersion === "number"
     ) {
-      return record as MacAgentServerMessage;
+      return record as WorkerServerMessage;
     }
     if (record.type === "job") {
       const job = parseChatbotJob(record.job);
       return job ? ({ type: "job", job } as const) : null;
     }
     if (record.type === "cancel" && typeof record.jobId === "string") {
-      return record as MacAgentServerMessage;
+      return record as WorkerServerMessage;
     }
     if (
       record.type === "steer" &&
@@ -90,19 +88,13 @@ function parseServerMessage(value: unknown) {
       typeof record.requestId === "string" &&
       typeof record.request === "string"
     ) {
-      return record as MacAgentServerMessage;
+      return record as WorkerServerMessage;
     }
     if (
       record.type === "codex_usage_request" &&
       typeof record.requestId === "string"
     ) {
-      return record as MacAgentServerMessage;
-    }
-    if (
-      record.type === "skill_sync_request" &&
-      typeof record.requestId === "string"
-    ) {
-      return record as MacAgentServerMessage;
+      return record as WorkerServerMessage;
     }
     return null;
   } catch {
@@ -110,7 +102,7 @@ function parseServerMessage(value: unknown) {
   }
 }
 
-export class MacAgentClient {
+export class WorkerClient {
   private appServer = new CodexAppServerManager();
   private authenticated = false;
   private authRetryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -119,53 +111,20 @@ export class MacAgentClient {
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  private sessionMonitor: SessionMonitor | null;
-  private skillbook?: SkillbookSync;
-  private skillsChanged = false;
   private socket: WebSocket | null = null;
   private stopped = false;
   private traceStore: ChatbotTraceStore;
   private unlocked = false;
 
-  constructor(private readonly config: MacAgentConfig) {
+  constructor(private readonly config: WorkerConfig) {
     this.traceStore = new ChatbotTraceStore(config.traceDatabasePath, {
       promptVersion: PROMPT_VERSION,
     });
-    this.skillbook = config.skillbookRepository
-      ? new SkillbookSync({
-          codexHome: config.codexHome,
-          githubConfigDir: config.githubConfigDir,
-          repository: config.skillbookRepository,
-          intervalMs: config.skillbookSyncIntervalMs,
-        })
-      : undefined;
-    this.sessionMonitor = config.headless
-      ? null
-      : new SessionMonitor(
-          config.sessionMonitorPath,
-          (state) => void this.handleSessionState(state),
-        );
   }
 
   start() {
-    void this.startAfterSkillSync();
-  }
-
-  private async startAfterSkillSync() {
-    await this.skillbook?.start(
-      () => this.markSkillsChanged(),
-      () => this.sendAvailability(),
-    );
-    if (this.stopped) return;
-    if (this.config.headless) {
-      this.unlocked = true;
-      void this.connectWhenReady();
-      console.log("MiniSago headless worker started.");
-      return;
-    }
-
-    this.sessionMonitor?.start();
-    console.log("MiniSago Mac worker started.");
+    this.unlocked = true;
+    void this.connectWhenReady();
   }
 
   stop() {
@@ -175,10 +134,8 @@ export class MacAgentClient {
     this.clearTimers();
     this.abortAllJobs();
     this.appServer.close();
-    this.skillbook?.stop();
     this.socket?.close(1000, "Helper stopped");
     this.socket = null;
-    this.sessionMonitor?.stop();
     this.traceStore.close();
   }
 
@@ -194,30 +151,7 @@ export class MacAgentClient {
       codexAuthenticated: this.codexAuthenticated,
       activeJobs: this.currentJobs.size,
       appServer,
-      ...(this.skillbook ? { skillbook: this.skillbook.status() } : {}),
     };
-  }
-
-  private async handleSessionState(state: "locked" | "unlocked") {
-    if (state === "locked") {
-      this.unlocked = false;
-      this.authenticated = false;
-      this.codexAuthenticated = false;
-      this.clearTimers();
-      this.abortAllJobs();
-      this.appServer.close();
-      this.socket?.close(1000, "Mac locked or sleeping");
-      this.socket = null;
-      console.log("Mac locked; worker unavailable.");
-      return;
-    }
-
-    if (this.unlocked || this.stopped) {
-      return;
-    }
-
-    this.unlocked = true;
-    await this.connectWhenReady();
   }
 
   private async connectWhenReady() {
@@ -343,32 +277,6 @@ export class MacAgentClient {
       return;
     }
 
-    if (message.type === "skill_sync_request") {
-      let changed = false;
-      if (this.skillbook) {
-        changed = await this.skillbook.sync().catch((error) => {
-          console.warn(
-            `Skillbook sync failed: ${
-              error instanceof Error ? error.message : "unknown error"
-            }`,
-          );
-          return false;
-        });
-        if (changed) this.markSkillsChanged();
-      }
-      this.send({
-        type: "skill_sync_result",
-        requestId: message.requestId,
-        status: this.skillbook?.status() ?? {
-          ok: false,
-          syncing: false,
-          skills: 0,
-          error: "Skillbook sync is disabled on this worker.",
-        },
-      });
-      return;
-    }
-
     if (message.type === "job") {
       void this.handleJob(message.job);
     }
@@ -387,7 +295,6 @@ export class MacAgentClient {
     }
 
     const controller = new AbortController();
-    this.reloadSkillsIfIdle();
     this.currentJobs.set(job.id, controller);
     const startedAt = Date.now();
     let phase: JobPhase = "preparing";
@@ -419,9 +326,6 @@ export class MacAgentClient {
                 onProgress: (progress) => {
                   phase = progress.phase;
                   this.send({ type: "progress", jobId: job.id, progress });
-                },
-                onReplyDelta: (delta) => {
-                  this.send({ type: "answer_delta", jobId: job.id, delta });
                 },
                 signal: controller.signal,
               });
@@ -477,23 +381,10 @@ export class MacAgentClient {
       );
     } finally {
       this.currentJobs.delete(job.id);
-      this.reloadSkillsIfIdle();
     }
   }
 
-  private markSkillsChanged() {
-    this.skillsChanged = true;
-    this.reloadSkillsIfIdle();
-    this.sendAvailability();
-  }
-
-  private reloadSkillsIfIdle() {
-    if (!this.skillsChanged || this.currentJobs.size > 0) return;
-    this.appServer.close();
-    this.skillsChanged = false;
-  }
-
-  private send(message: MacAgentClientMessage) {
+  private send(message: WorkerClientMessage) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
     }
@@ -504,7 +395,6 @@ export class MacAgentClient {
       type: "availability",
       available: true,
       capacity: this.config.maxConcurrentJobs,
-      ...(this.skillbook ? { skillbook: this.skillbook.status() } : {}),
     });
   }
 

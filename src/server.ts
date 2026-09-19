@@ -4,9 +4,9 @@ import type { Server } from "bun";
 import { getChatbotAccessConfig } from "./chatbot/access";
 import { getPublicDiscordSummary } from "./discord/config";
 import {
-  macAgentBridge,
-  macAgentWebSocketHandler,
-  type MacAgentSocketData,
+  workerBridge,
+  workerWebSocketHandler,
+  type WorkerSocketData,
 } from "./chatbot/bridge";
 import {
   handleChatbotMcpRequest,
@@ -41,9 +41,9 @@ function buildHealthResponse() {
         botToken: summary.hasBotToken,
         guildId: summary.hasGuildId,
         githubWebhook: isGithubWebhookConfigured(),
-        macBridge: macAgentBridge.isConfigured(),
+        macBridge: workerBridge.isConfigured(),
       },
-      workers: macAgentBridge.getWorkerSummary(),
+      workers: workerBridge.getWorkerSummary(),
     });
   } catch (error) {
     console.error("Invalid health check configuration:", error);
@@ -57,13 +57,13 @@ function buildHealthResponse() {
   }
 }
 
-function handleRequest(request: Request, server: Server<MacAgentSocketData>) {
+function handleRequest(request: Request, server: Server<WorkerSocketData>) {
   const { pathname } = new URL(request.url);
   const calendarPage = handleCalendarPage(request);
   if (calendarPage) return calendarPage;
 
-  if (request.method === "GET" && pathname === "/api/mac-agent/ws") {
-    return macAgentBridge.handleUpgrade(request, server);
+  if (request.method === "GET" && pathname === "/api/worker/ws") {
+    return workerBridge.handleUpgrade(request, server);
   }
 
   if (request.method === "GET" && pathname === "/api/health") {
@@ -92,7 +92,7 @@ const server = Bun.serve({
   port,
   hostname,
   fetch: handleRequest,
-  websocket: macAgentWebSocketHandler,
+  websocket: workerWebSocketHandler,
 });
 
 const reminderBotToken = process.env.DISCORD_BOT_TOKEN?.trim();

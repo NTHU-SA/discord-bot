@@ -7,8 +7,8 @@ import { resolveDriveRequester } from "./drive-discord-access";
 import { createGoogleCalendarClient } from "./google-calendar";
 import type { ChatbotAccessConfig } from "./access";
 import {
-  macAgentBridge,
-  type MacAgentJobResult,
+  workerBridge,
+  type WorkerJobResult,
   type WorkflowLease,
 } from "./bridge";
 import { CHATBOT_CONTEXT_LIMITS } from "./context-limits";
@@ -681,7 +681,7 @@ class DeveloperTaskRegistry {
     }
     task.extendMcp();
     if (!task.workflow) {
-      const acquired = macAgentBridge.acquireWorkflow(["dev"]);
+      const acquired = workerBridge.acquireWorkflow(["dev"]);
       if (acquired.status !== "accepted") {
         task.state = "stopped";
         task.summary =
@@ -1034,7 +1034,7 @@ export async function handleChatbotMention({
     }
   }
 
-  const acquired = macAgentBridge.acquireWorkflow();
+  const acquired = workerBridge.acquireWorkflow();
 
   if (acquired.status === "offline") {
     const content = "我現在沒接上工作機 晚點再叫我一次 💤";
@@ -1049,7 +1049,7 @@ export async function handleChatbotMention({
   }
 
   const { workflow } = acquired;
-  let result: MacAgentJobResult;
+  let result: WorkerJobResult;
   let deferredDeveloperTask = false;
   let mcpSession: ReturnType<typeof registerChatbotMcpSession> | undefined;
   let mcpSnapshot: ChatbotMcpSessionSnapshot = {
