@@ -1,49 +1,32 @@
-# MiniSago
+# NTHUSA Discord bot
 
-<img src="assets/minisago.png" alt="MiniSago icon" width="160">
+NTHUSA's Discord assistant, maintained in [NTHU-SA/discord-bot](https://github.com/NTHU-SA/discord-bot), forked from [MiniSago](https://github.com/sago-cream/mini-sago).
 
-A Discord bot for... everything?
-Codex-powered chat with server context, emote creation and cross-server migration, manage issue or publish PR based on discussion context, maintain PR review thread life cycle, set reminders, process images, access files from my Mac, you name it.
+The bot supports guild mentions, replies and follow-ups; campus information; role-aware NTHUSA Drive access; Calendar bookings with confirmation buttons; reminders; server memory; reactions; media/document processing; static X feeds; and owner-authorized repository work with coding threads and optional self-deployment.
 
-## Features
+It has no DM assistant, `/ask`, live voice, personal Mac file delivery, Skillbook synchronization, TOEFL/Bahamut jobs, Kyushu planner, arbitrary cross-channel send tool, or runtime feature/feed configuration tools. The full [feature decisions](docs/nthu-sa-fork-scope.md) record the selected scope.
 
-- Reacts to community messages with emotes in configured server.
-- Answers member and configured role mentions using conversation context, attachments, public web search, and accessible Discord history.
-- Joins Discord voice channels for spoken conversations. **WIP and far from usable:** recognition, response latency, and turn-taking still need work.
-- Performs expression management on demand, including adding emojis or stickers from attachments and moving emojis to other servers.
-- Publishes daily TOEFL vocabulary, AniGamer forum voucher code updates, and Codex news on X to configured channels.
-- Improves Instagram and Twitter/X embeds with `kkinstagram.com` and `fxtwitter.com` links.
-- Creates reminders when asked to and pings you when the reminder expires.
-- Listen to GitHub activities and maintains PR review threads for certain repo in configured server.
-- Find files in my Mac and send it in chat when asked by me.
-- Searches Threads on request for 清大, NTHU, 學生會 plus optional extra keywords.
-- Runs coding tasks in dedicated Discord threads with progress reports,
-  steering, stop, and continuation, then publishes a draft PR when authorized.
+## Set up an NTHUSA instance
 
-> [!TIP]
-> Mention MiniSago under **Members/Apps**, or use a configured MiniSago role.
-> When quoting her messages, disable reply ping to prevent triggering another reply.
-> She searches only channels the requester can access, so feel free to continue to talk behind someone's back.
+Start with the **[NTHUSA hosting and handoff guide](docs/nthusa-hosting.md)**. It covers a new association-owned Discord application, name/avatar/description choices, separate credentials, the Linux Compose deployment, Google integrations, launch checks, and operator handoff. NTHUSA's existing infrastructure has not been inspected or deployed by this work.
 
-## Self-host MiniSago
-
-MiniSago requires [Bun](https://bun.sh/), a Discord application, and a Codex
-worker.
-
-Start with [Discord setup](docs/discord-setup.md) and
-[worker setup](docs/workers.md). See also:
-
-- [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
-- [Security](docs/security.md)
-- [Operations](docs/operations.md)
-- [Durable-state backup and restore](docs/operations.md#durable-state-backup-and-restore)
+- [Discord installation and permissions](docs/discord-setup.md)
+- [Architecture](docs/architecture.md) and [worker setup](docs/workers.md)
+- [Operations and recovery](docs/operations.md)
+- [Trust boundaries](docs/security.md)
 
-## Voice credits
+## Local development
 
-MiniSago's voice chat uses **VOICEVOX:猫使ビィ**.
-See the [VOICEVOX terms](https://voicevox.hiroshiba.jp/term/) and
-[猫使 voice library terms](https://nekotukarb.wixsite.com/nekonohako/利用規約).
+Use Bun 1.3.9. Copy `.env.example` to `.env.local` and configure a separate test application, guild/channel coverage, and operator ID. Worker credentials are separate; see the hosting guide. Do not run a second Gateway process with the production bot token.
 
-When hosting the bot, link this credits section from its Discord profile so
-listeners can find the attribution.
+```sh
+bun install --frozen-lockfile
+bun install --cwd worker --frozen-lockfile
+bun run build
+bun run --cwd worker build
+bun test
+bun --env-file=.env.local --watch src/server.ts
+```
+
+`bun run eval:prompts` is an optional live-model suite that needs Codex authentication. Unit tests use fixtures; they do not demonstrate a working production account or host. Runtime environment keys inherited as `MINISAGO_*` remain supported configuration names; branding is selected through `NTHUSA_BOT_NAME`.
