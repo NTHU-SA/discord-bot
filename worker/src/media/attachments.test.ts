@@ -221,7 +221,7 @@ describe("chatbot attachment limits", () => {
         id: "message-2",
         author: "Hsi",
         timestamp: "2026-07-20T10:00:00.000Z",
-        content: "@MiniSago read this",
+        content: "@NTHUSA Bot read this",
         attachments: [
           {
             id: "attachment-2",

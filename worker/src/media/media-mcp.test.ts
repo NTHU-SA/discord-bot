@@ -19,7 +19,7 @@ afterEach(async () => {
   );
 });
 
-describe("MiniSago media MCP", () => {
+describe("NTHUSA Bot media MCP", () => {
   test("starts over stdio with only the curated request-local tools", async () => {
     const root = await mkdtemp(join(tmpdir(), "minisago-media-mcp-"));
     temporaryDirectories.push(root);

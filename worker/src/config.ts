@@ -30,7 +30,7 @@ export type WorkerConfig = {
 const bundledCodexPath = "/Applications/ChatGPT.app/Contents/Resources/codex";
 const defaultApplicationSupport =
   process.platform === "darwin"
-    ? join(homedir(), "Library", "Application Support", "MiniSago")
+    ? join(homedir(), "Library", "Application Support", "NTHUSA Bot")
     : join(homedir(), ".local", "state", "minisago");
 
 export function deploySocketPath(

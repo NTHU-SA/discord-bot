@@ -24,7 +24,8 @@ async function main() {
   if (!sandboxUrl) throw new Error("MINISAGO_SANDBOX_URL is required.");
   const mcpUrl = process.env.MINISAGO_MCP_URL;
   const token = process.env.MINISAGO_MCP_TOKEN;
-  if (!mcpUrl || !token) throw new Error("MiniSago media access is required.");
+  if (!mcpUrl || !token)
+    throw new Error("NTHUSA Bot media access is required.");
   const mediaClient = httpMediaClient(mcpUrl, token);
   const processor = await MediaProcessor.fromFile(manifestPath, mediaClient);
   const python = await PythonProcessor.fromFile(

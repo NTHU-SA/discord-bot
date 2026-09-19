@@ -625,7 +625,7 @@ describe("Discord chatbot", () => {
               channel_id: "coding-thread",
               content: "release notes reviewed",
               timestamp: "2026-08-10T12:03:45.000Z",
-              author: { id: BOT_ID, username: "MiniSago" },
+              author: { id: BOT_ID, username: "NTHUSA Bot" },
             },
           },
           botUserId: BOT_ID,
@@ -841,11 +841,11 @@ describe("Discord chatbot", () => {
     ).toEqual({ reply: null });
   });
 
-  test("enforces first-person MiniSago identity before posting", () => {
+  test("enforces first-person NTHUSA Bot identity before posting", () => {
     expect(
       parseChatbotAnswerDecision(
         JSON.stringify({
-          reply: "You mean MiniSago's globally available built-ins.",
+          reply: "You mean NTHUSA Bot's globally available built-ins.",
           reaction: null,
         }),
       ),
@@ -853,7 +853,7 @@ describe("Discord chatbot", () => {
     expect(
       parseChatbotAnswerDecision(
         JSON.stringify({
-          reply: "這些是迷你西米露的全域功能",
+          reply: "這些是NTHUSA Bot的全域功能",
           reaction: null,
         }),
       ),
@@ -861,7 +861,7 @@ describe("Discord chatbot", () => {
     expect(
       parseChatbotAnswerDecision(
         JSON.stringify({
-          reply: "MiniSago handles reminders.",
+          reply: "NTHUSA Bot handles reminders.",
           reaction: null,
         }),
       ),
@@ -870,16 +870,16 @@ describe("Discord chatbot", () => {
       parseChatbotAnswerDecision(
         JSON.stringify({
           reply: enforceFirstPersonIdentity(
-            "<self-introduction>MiniSago</self-introduction> here, reporting in.",
+            "<self-introduction>NTHUSA Bot</self-introduction> here, reporting in.",
             false,
           ),
           reaction: null,
         }),
       ),
-    ).toEqual({ reply: "MiniSago here, reporting in." });
+    ).toEqual({ reply: "NTHUSA Bot here, reporting in." });
     expect(
       parseChatbotAnswerDecision(
-        JSON.stringify({ reply: "I'm MiniSago.", reaction: null }),
+        JSON.stringify({ reply: "I'm NTHUSA Bot.", reaction: null }),
       ),
     ).toEqual({ reply: null });
   });
@@ -943,7 +943,7 @@ describe("Discord chatbot", () => {
     ).toBeNull();
   });
 
-  test("labels how the current request addresses MiniSago", () => {
+  test("labels how the current request addresses NTHUSA Bot", () => {
     const base = {
       id: "message-1",
       channel_id: "channel-1",
@@ -976,7 +976,7 @@ describe("Discord chatbot", () => {
             channel_id: "channel-1",
             content: "我剛剛看錯了",
             timestamp: "2026-08-09T11:59:00.000Z",
-            author: { id: BOT_ID, username: "MiniSago", bot: true },
+            author: { id: BOT_ID, username: "NTHUSA Bot", bot: true },
           },
         },
         BOT_ID,
@@ -1005,7 +1005,7 @@ describe("Discord chatbot", () => {
     ).toBeNull();
   });
 
-  test("treats replies that ping MiniSago as chatbot requests", () => {
+  test("treats replies that ping NTHUSA Bot as chatbot requests", () => {
     const message = {
       id: "reply-1",
       guild_id: "917436845187563610",
@@ -1019,7 +1019,7 @@ describe("Discord chatbot", () => {
         channel_id: "channel-1",
         content: "我剛剛沒找到",
         timestamp: "2026-07-20T10:59:00.000Z",
-        author: { id: BOT_ID, username: "MiniSago", bot: true },
+        author: { id: BOT_ID, username: "NTHUSA Bot", bot: true },
       },
     };
 
@@ -1086,7 +1086,7 @@ describe("Discord chatbot", () => {
     ).toBeNull();
   });
 
-  test("keeps the replied-to MiniSago message in request context", () => {
+  test("keeps the replied-to NTHUSA Bot message in request context", () => {
     const requestMessage = toChatbotMessage(
       {
         id: "reply-1",
@@ -1099,7 +1099,7 @@ describe("Discord chatbot", () => {
           channel_id: "channel-1",
           content: "我剛剛沒找到",
           timestamp: "2026-07-20T10:59:00.000Z",
-          author: { id: BOT_ID, username: "MiniSago", bot: true },
+          author: { id: BOT_ID, username: "NTHUSA Bot", bot: true },
         },
       },
       BOT_ID,
@@ -1108,7 +1108,7 @@ describe("Discord chatbot", () => {
     expect(requestMessage.referencedMessage).toMatchObject({
       id: "bot-message-1",
       role: "assistant",
-      author: "MiniSago",
+      author: "NTHUSA Bot",
       content: "我剛剛沒找到",
     });
   });
@@ -1186,7 +1186,7 @@ describe("Discord chatbot", () => {
     });
   });
 
-  test("responds when another bot mentions MiniSago", async () => {
+  test("responds when another bot mentions NTHUSA Bot", async () => {
     const requests: Array<{ path: string; body: unknown }> = [];
     const handled = await handleChatbotMention({
       message: {
@@ -1219,7 +1219,7 @@ describe("Discord chatbot", () => {
     });
   });
 
-  test("ignores MiniSago's own messages", async () => {
+  test("ignores NTHUSA Bot's own messages", async () => {
     const handled = await handleChatbotMention({
       message: {
         id: "message-self",
@@ -1227,7 +1227,7 @@ describe("Discord chatbot", () => {
         guild_id: "917436845187563610",
         content: `<@${BOT_ID}> accidental self mention`,
         timestamp: "2026-08-26T11:00:00.000Z",
-        author: { id: BOT_ID, username: "MiniSago", bot: true },
+        author: { id: BOT_ID, username: "NTHUSA Bot", bot: true },
         mentions: [{ id: BOT_ID }],
       },
       botUserId: BOT_ID,
@@ -1276,7 +1276,7 @@ describe("Discord chatbot", () => {
     ]);
   });
 
-  test("responds to a MiniSago reply without requiring another mention", async () => {
+  test("responds to a NTHUSA Bot reply without requiring another mention", async () => {
     const requests: Array<{ path: string; body: unknown }> = [];
     const handled = await handleChatbotMention({
       message: {
@@ -1292,7 +1292,7 @@ describe("Discord chatbot", () => {
           channel_id: "channel-1",
           content: "我剛剛沒找到",
           timestamp: "2026-07-20T10:59:00.000Z",
-          author: { id: BOT_ID, username: "MiniSago", bot: true },
+          author: { id: BOT_ID, username: "NTHUSA Bot", bot: true },
         },
       },
       botUserId: BOT_ID,
@@ -1560,13 +1560,13 @@ describe("Discord chatbot", () => {
     expect(messages.some((message) => message.id === "message-3")).toBe(true);
   });
 
-  test("keeps MiniSago replies and other bot messages as context", () => {
+  test("keeps NTHUSA Bot replies and other bot messages as context", () => {
     const base = {
       id: "message-1",
       channel_id: "channel-1",
       content: "earlier answer",
       timestamp: "2026-07-20T11:00:00.000Z",
-      author: { id: BOT_ID, username: "MiniSago", bot: true },
+      author: { id: BOT_ID, username: "NTHUSA Bot", bot: true },
     };
 
     expect(isConversationContextMessage(base, "request", BOT_ID)).toBe(true);

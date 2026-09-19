@@ -39,7 +39,7 @@ export function formatJobFailure(
       cause,
     );
   const branch = job.developerTask
-    ? `minisago/${job.developerTask.id}`
+    ? `nthusa/${job.developerTask.id}`
     : undefined;
   return [
     `Phase: ${phase}`,
@@ -228,7 +228,7 @@ export class WorkerClient {
       this.reconnectAttempts = 0;
       this.startHeartbeat();
       this.sendAvailability();
-      console.log("MiniSago worker available.");
+      console.log("NTHUSA Bot worker available.");
       return;
     }
 

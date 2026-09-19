@@ -123,7 +123,7 @@ describe("guild expression tools", () => {
     });
   });
 
-  test("rejects a destination where Sago cannot create expressions", async () => {
+  test("rejects a destination where NTHUSA Bot cannot create expressions", async () => {
     await expect(
       copyGuildEmoji({
         sourceGuild: "Source",

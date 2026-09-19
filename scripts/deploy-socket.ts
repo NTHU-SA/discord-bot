@@ -12,17 +12,17 @@ export async function requestMinisagoDeployment(
     throw new Error("MINISAGO_DEPLOY_SOCKET must be an absolute path.");
   }
   if (!/^[0-9a-f]{40}$/u.test(commit)) {
-    throw new Error("MiniSago deployment requires a full commit SHA.");
+    throw new Error("NTHUSA Bot deployment requires a full commit SHA.");
   }
   if (!/^\d{17,20}$/u.test(channelId)) {
-    throw new Error("MiniSago deployment requires a Discord channel ID.");
+    throw new Error("NTHUSA Bot deployment requires a Discord channel ID.");
   }
 
   return await new Promise<string>((resolve, reject) => {
     const socket = createConnection(socketPath);
     let response = "";
     const timeout = setTimeout(() => {
-      socket.destroy(new Error("MiniSago deployment socket timed out."));
+      socket.destroy(new Error("NTHUSA Bot deployment socket timed out."));
     }, RESPONSE_TIMEOUT_MS);
 
     socket.setEncoding("utf8");
@@ -31,7 +31,7 @@ export async function requestMinisagoDeployment(
       response += chunk;
       if (Buffer.byteLength(response) > MAX_RESPONSE_BYTES) {
         socket.destroy(
-          new Error("MiniSago deployment socket returned too much data."),
+          new Error("NTHUSA Bot deployment socket returned too much data."),
         );
       }
     });
@@ -46,7 +46,7 @@ export async function requestMinisagoDeployment(
         resolve(result);
       } else {
         reject(
-          new Error(result || "MiniSago deployment socket closed silently."),
+          new Error(result || "NTHUSA Bot deployment socket closed silently."),
         );
       }
     });

@@ -51,7 +51,7 @@ describe("request-scoped media registry", () => {
           headers: {
             ...authorization,
             "content-type": "image/webp",
-            "x-minisago-filename": "result.webp",
+            "x-nthusa-filename": "result.webp",
           },
           body: new Uint8Array([4, 5, 6]),
         }),

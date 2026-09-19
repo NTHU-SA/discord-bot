@@ -8,7 +8,7 @@ import {
 import { decodeEntities, readJsonFile, writeJsonFile } from "./job-utils";
 const DEFAULT_CHECK_INTERVAL_MS = 300_000;
 const STATE_CHECKPOINT_INTERVAL_MS = 3_600_000;
-const USER_AGENT = "MiniSago/0.1";
+const USER_AGENT = "NTHUSA Bot/0.1";
 
 export type XPost = {
   id: string;

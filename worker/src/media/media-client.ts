@@ -33,7 +33,7 @@ export function httpMediaClient(
       return {
         mediaId,
         filename: decodeURIComponent(
-          response.headers.get("x-minisago-filename") ?? mediaId,
+          response.headers.get("x-nthusa-filename") ?? mediaId,
         ),
         contentType: response.headers.get("content-type") ?? undefined,
         bytes: new Uint8Array(await response.arrayBuffer()),
@@ -45,7 +45,7 @@ export function httpMediaClient(
         headers: {
           authorization,
           "content-type": media.contentType ?? "application/octet-stream",
-          "x-minisago-filename": encodeURIComponent(media.filename),
+          "x-nthusa-filename": encodeURIComponent(media.filename),
         },
         body: media.bytes,
         signal: AbortSignal.timeout(20_000),

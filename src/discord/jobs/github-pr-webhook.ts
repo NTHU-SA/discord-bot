@@ -1,21 +1,29 @@
+import { z } from "zod";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { createDiscordRequest } from "../api/request";
 import { readJsonFile, writeJsonFile } from "./job-utils";
 
-const TARGET_REPOSITORY = "sago-cream/health-check-system";
-const DEFAULT_THREAD_CHANNEL_ID = "1521506395034226830";
 const DEFAULT_STATE_FILE = ".data/github-pr-threads.json";
 const PUBLIC_THREAD_TYPE = 11;
 const APPROVED_EMOJI_NAME = "approved";
 
-const TEAM = {
-  "sago-cream": "917446775873343600",
-  Danielllllllllllllll: "927940363644194847",
-  Jasmine0108: "881904247879368715",
-} as const;
+const repositorySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u);
+const snowflakeSchema = z.string().regex(/^\d{17,20}$/u);
 
-type TeamLogin = keyof typeof TEAM;
+function configuredReviewers() {
+  const reviewers = z
+    .record(z.string().regex(/^[A-Za-z0-9-]+$/u), snowflakeSchema)
+    .parse(JSON.parse(process.env.GITHUB_REVIEWERS_JSON || "{}"));
+  return Object.assign(
+    Object.create(null) as Record<string, string>,
+    Object.fromEntries(
+      Object.entries(reviewers).map(([login, id]) => [login.toLowerCase(), id]),
+    ),
+  );
+}
 
 type PullRequestPayload = {
   action?: string;
@@ -57,6 +65,8 @@ type ThreadState = {
 };
 
 type WebhookConfig = {
+  repositories: Set<string>;
+  reviewers: Record<string, string>;
   botToken: string;
   channelId: string;
   secret: string;
@@ -113,10 +123,6 @@ export function verifyGithubWebhookSignature(
   );
 }
 
-function isTeamLogin(login: string): login is TeamLogin {
-  return login in TEAM;
-}
-
 function escapeDiscordLinkText(value: string) {
   return value.replaceAll("\\", "\\\\").replaceAll("]", "\\]");
 }
@@ -125,19 +131,30 @@ export function buildReviewRequest({
   authorLogin,
   title,
   url,
+  reviewers = configuredReviewers(),
 }: {
   authorLogin: string;
   title: string;
   url: string;
+  reviewers?: Record<string, string>;
 }): ReviewRequest {
-  const reviewerDiscordIds =
-    authorLogin === "sago-cream"
-      ? [TEAM.Danielllllllllllllll, TEAM.Jasmine0108]
-      : [TEAM["sago-cream"]];
+  const authorDiscordId = Object.hasOwn(reviewers, authorLogin.toLowerCase())
+    ? reviewers[authorLogin.toLowerCase()]
+    : undefined;
+  const reviewerDiscordIds = [
+    ...new Set(
+      Object.entries(reviewers)
+        .filter(
+          ([login, id]) =>
+            login !== authorLogin.toLowerCase() && id !== authorDiscordId,
+        )
+        .map(([, id]) => id),
+    ),
+  ];
   const mentions = reviewerDiscordIds.map((id) => `<@${id}>`).join(" ");
 
   return {
-    authorDiscordId: isTeamLogin(authorLogin) ? TEAM[authorLogin] : undefined,
+    authorDiscordId,
     reviewerDiscordIds,
     message: {
       content: `${mentions} please review [${escapeDiscordLinkText(title)}](<${url}>)`,
@@ -159,16 +176,22 @@ function getWebhookConfig(): WebhookConfig | null {
   const secret = process.env.GITHUB_WEBHOOK_SECRET?.trim();
   const botToken = process.env.DISCORD_BOT_TOKEN?.trim();
 
-  if (!secret || !botToken) {
+  const channelId = process.env.GITHUB_PR_THREAD_CHANNEL_ID?.trim();
+  const repositoryList = process.env.GITHUB_PR_REPOSITORIES?.trim();
+  if (!secret || !botToken || !channelId || !repositoryList) {
     return null;
   }
 
   return {
     secret,
     botToken,
-    channelId:
-      process.env.GITHUB_PR_THREAD_CHANNEL_ID?.trim() ||
-      DEFAULT_THREAD_CHANNEL_ID,
+    channelId: snowflakeSchema.parse(channelId),
+    repositories: new Set(
+      repositoryList
+        .split(",")
+        .map((value) => repositorySchema.parse(value.trim()).toLowerCase()),
+    ),
+    reviewers: configuredReviewers(),
     stateFile:
       process.env.GITHUB_PR_THREAD_STATE_FILE?.trim() || DEFAULT_STATE_FILE,
   };
@@ -193,12 +216,16 @@ async function readState(stateFile: string): Promise<ThreadState> {
   }
 }
 
-function getPullRequestDetails(payload: PullRequestPayload) {
+function getPullRequestDetails(
+  payload: PullRequestPayload,
+  repositories: Set<string>,
+) {
   const repository = payload.repository?.full_name;
   const pullRequest = payload.pull_request;
 
   if (
-    repository?.toLowerCase() !== TARGET_REPOSITORY.toLowerCase() ||
+    !repository ||
+    !repositories.has(repository.toLowerCase()) ||
     !pullRequest ||
     typeof pullRequest.number !== "number" ||
     !pullRequest.title ||
@@ -260,7 +287,10 @@ async function openReviewThread(
     return "already-created" as const;
   }
 
-  const reviewRequest = buildReviewRequest(details);
+  const reviewRequest = buildReviewRequest({
+    ...details,
+    reviewers: config.reviewers,
+  });
   const participantIds = new Set([
     ...reviewRequest.reviewerDiscordIds,
     ...(reviewRequest.authorDiscordId ? [reviewRequest.authorDiscordId] : []),
@@ -311,9 +341,7 @@ async function notifyAuthorOfApproval(
     return "already-notified" as const;
   }
 
-  const authorDiscordId = isTeamLogin(record.authorLogin)
-    ? TEAM[record.authorLogin]
-    : undefined;
+  const authorDiscordId = config.reviewers[record.authorLogin.toLowerCase()];
 
   if (!authorDiscordId) {
     return "not-found" as const;
@@ -334,13 +362,9 @@ async function notifyAuthorOfApproval(
     (emoji) => emoji.name === APPROVED_EMOJI_NAME && emoji.available !== false,
   );
 
-  if (!approvedEmoji) {
-    throw new Error(
-      `Discord guild ${channel.guild_id} does not have an available :${APPROVED_EMOJI_NAME}: emoji`,
-    );
-  }
-
-  const emoji = `<${approvedEmoji.animated ? "a" : ""}:${APPROVED_EMOJI_NAME}:${approvedEmoji.id}>`;
+  const emoji = approvedEmoji
+    ? `<${approvedEmoji.animated ? "a" : ""}:${APPROVED_EMOJI_NAME}:${approvedEmoji.id}>`
+    : "✅";
   await discordRequest(`/channels/${record.threadId}/messages`, {
     method: "POST",
     body: {
@@ -369,10 +393,9 @@ async function archiveReviewThread(
     return "not-found" as const;
   }
 
-  const mergerDiscordId =
-    details.mergedByLogin && isTeamLogin(details.mergedByLogin)
-      ? TEAM[details.mergedByLogin]
-      : undefined;
+  const mergerDiscordId = details.mergedByLogin
+    ? config.reviewers[details.mergedByLogin.toLowerCase()]
+    : undefined;
 
   if (!record.mergeNotificationSent && mergerDiscordId) {
     await discordRequest(`/channels/${record.threadId}/messages`, {
@@ -453,7 +476,7 @@ export async function handleGithubWebhookRequest(request: Request) {
     );
   }
 
-  const details = getPullRequestDetails(payload);
+  const details = getPullRequestDetails(payload, config.repositories);
 
   if (!details) {
     return Response.json({ ok: true, ignored: true }, { status: 202 });
@@ -492,5 +515,5 @@ export async function handleGithubWebhookRequest(request: Request) {
 }
 
 export function isGithubWebhookConfigured() {
-  return Boolean(process.env.GITHUB_WEBHOOK_SECRET?.trim());
+  return getWebhookConfig() !== null;
 }

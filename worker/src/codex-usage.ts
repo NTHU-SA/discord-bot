@@ -101,7 +101,7 @@ export async function readCodexUsage(
       method: "initialize",
       id: 1,
       params: {
-        clientInfo: { name: "minisago", title: "MiniSago", version: "1" },
+        clientInfo: { name: "minisago", title: "NTHUSA Bot", version: "1" },
       },
     });
 

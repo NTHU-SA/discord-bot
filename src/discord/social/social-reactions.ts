@@ -261,7 +261,7 @@ export class AmbientReactionController {
     (
       this.options.log ??
       ((value) =>
-        console.log("MiniSago ambient attention:", JSON.stringify(value)))
+        console.log("NTHUSA Bot ambient attention:", JSON.stringify(value)))
     )(event);
   }
 

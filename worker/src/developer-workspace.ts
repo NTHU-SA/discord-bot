@@ -41,7 +41,7 @@ const GH_WRAPPER = `#!/bin/sh
 set -eu
 
 deny() {
-  echo "MiniSago denied this GitHub operation." >&2
+  echo "NTHUSA Bot denied this GitHub operation." >&2
   exit 77
 }
 
@@ -91,13 +91,13 @@ set -eu
 if [ "\${1:-}" = "push" ]; then
   branch="$("$MINISAGO_REAL_GIT" branch --show-current)"
   [ "$branch" = "$MINISAGO_GIT_BRANCH" ] || {
-    echo "MiniSago denied git push from an unprepared branch." >&2
+    echo "NTHUSA Bot denied git push from an unprepared branch." >&2
     exit 77
   }
   for argument in "$@"; do
     case "$argument" in
       --force|--force-with-lease|-f|main|master|HEAD:main|HEAD:master)
-        echo "MiniSago denied a protected or force push." >&2
+        echo "NTHUSA Bot denied a protected or force push." >&2
         exit 77
         ;;
     esac
@@ -177,12 +177,20 @@ export async function prepareDeveloperWorkspace(
   const jobRoot = resolve(options.githubWorktreeRoot, safeJobId(workspaceId));
   const directory = join(jobRoot, ...repository.split("/"));
   const binDirectory = join(jobRoot, "bin");
-  const branch = `minisago/${safeJobId(workspaceId)}`;
+  const branch = `nthusa/${safeJobId(workspaceId)}`;
   const preparationEnvironment = {
     GH_CONFIG_DIR: options.githubConfigDir,
     GH_HOST: "github.com",
     GH_PROMPT_DISABLED: "1",
     GIT_TERMINAL_PROMPT: "0",
+    GIT_AUTHOR_NAME: process.env.NTHUSA_GIT_AUTHOR_NAME || "NTHUSA Bot",
+    GIT_AUTHOR_EMAIL:
+      process.env.NTHUSA_GIT_AUTHOR_EMAIL ||
+      "discord-bot@users.noreply.github.com",
+    GIT_COMMITTER_NAME: process.env.NTHUSA_GIT_AUTHOR_NAME || "NTHUSA Bot",
+    GIT_COMMITTER_EMAIL:
+      process.env.NTHUSA_GIT_AUTHOR_EMAIL ||
+      "discord-bot@users.noreply.github.com",
   };
   const preservedTimer = preservedWorkspaceTimers.get(jobRoot);
   if (preservedTimer) {

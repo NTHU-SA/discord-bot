@@ -13,7 +13,7 @@ import {
   handleChatbotMediaRequest,
 } from "./chatbot/mcp";
 import { startDeploymentNotificationMonitor } from "./discord/jobs/deployment-notifications";
-import { startInstagramGateway } from "./discord/gateway";
+import { startDiscordGateway } from "./discord/gateway";
 import {
   handleGithubWebhookRequest,
   isGithubWebhookConfigured,
@@ -41,7 +41,7 @@ function buildHealthResponse() {
         botToken: summary.hasBotToken,
         guildId: summary.hasGuildId,
         githubWebhook: isGithubWebhookConfigured(),
-        macBridge: workerBridge.isConfigured(),
+        workerBridge: workerBridge.isConfigured(),
       },
       workers: workerBridge.getWorkerSummary(),
     });
@@ -116,9 +116,9 @@ if (reminderBotToken) {
 }
 
 if (process.env.DISCORD_GATEWAY_DISABLED !== "true") {
-  startInstagramGateway();
+  startDiscordGateway();
 }
 startXPostMonitor();
 startDeploymentNotificationMonitor();
 
-console.log(`MiniSago listening on http://${server.hostname}:${server.port}`);
+console.log(`NTHUSA Bot listening on http://${server.hostname}:${server.port}`);

@@ -1,3 +1,5 @@
+import { BOT_NAME, escapeRegExp } from "./identity";
+
 export const CHATBOT_REPLY_MAX_CHARACTERS = 1_900;
 export const CHATBOT_REACTION_MAX_CHARACTERS = 100;
 
@@ -6,9 +8,12 @@ export type ChatbotAnswerDecision = {
   reactionEmoji?: string;
 };
 
-const SELF_NAME = /\b(?:MiniSago|Sago)\b|迷你西米露/u;
-const SELF_INTRODUCTION =
-  /<self-introduction>(MiniSago|Sago|迷你西米露)<\/self-introduction>/gu;
+const namePattern = escapeRegExp(BOT_NAME);
+const SELF_NAME = new RegExp(namePattern, "u");
+const SELF_INTRODUCTION = new RegExp(
+  `<self-introduction>(${namePattern})</self-introduction>`,
+  "gu",
+);
 const SELF_INTRODUCTION_MARKER = /<\/?self-introduction>/u;
 
 export function enforceFirstPersonIdentity(
@@ -17,13 +22,13 @@ export function enforceFirstPersonIdentity(
 ) {
   const normalized = reply
     .replace(
-      /\b(?:MiniSago|Sago)[\u2019']s\b/gu,
+      new RegExp(`${namePattern}[\\u2019']s\\b`, "gu"),
       (_match, offset: number, value: string) =>
         offset === 0 || /[.!?\n]\s*$/u.test(value.slice(0, offset))
           ? "My"
           : "my",
     )
-    .replace(/迷你西米露的/gu, "我的");
+    .replace(new RegExp(`${namePattern}的`, "gu"), "我的");
   const unmarked = normalized.replace(SELF_INTRODUCTION, "");
   if (SELF_INTRODUCTION_MARKER.test(unmarked) || SELF_NAME.test(unmarked)) {
     return null;

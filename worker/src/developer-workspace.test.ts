@@ -92,7 +92,7 @@ describe("developer workspace", () => {
         ({ environment }) => environment.GH_CONFIG_DIR === "/secrets/github",
       ),
     ).toBe(true);
-    expect(commands[1]!.command.at(-1)).toBe("minisago/job-123");
+    expect(commands[1]!.command.at(-1)).toBe("nthusa/job-123");
   });
 
   test("exposes only the configured deployment socket to coding jobs", async () => {
@@ -214,14 +214,11 @@ describe("developer workspace", () => {
       stderr: "ignore",
     });
     expect(await denied.exited).toBe(77);
-    const assignedAdmin = Bun.spawn(
-      [gh, "pr", "merge", "12", "--admin=true"],
-      {
-        env: environment,
-        stdout: "ignore",
-        stderr: "ignore",
-      },
-    );
+    const assignedAdmin = Bun.spawn([gh, "pr", "merge", "12", "--admin=true"], {
+      env: environment,
+      stdout: "ignore",
+      stderr: "ignore",
+    });
     expect(await assignedAdmin.exited).toBe(77);
   });
 

@@ -1,3 +1,4 @@
+import { BOT_NAME, escapeRegExp } from "../../../contracts/identity";
 import type {
   AnswerJob,
   ChatbotMessage,
@@ -25,7 +26,10 @@ function addressingReferences(request: string) {
   return {
     directSelfReferences: uniqueMatches(
       request,
-      /你|妳|您|迷你西米露|MiniSago|Sago|\byou(?:r|rs|rself)?\b/giu,
+      new RegExp(
+        `你|妳|您|${escapeRegExp(BOT_NAME)}|\\byou(?:r|rs|rself)?\\b`,
+        "giu",
+      ),
     ),
     possibleSelfReferences: uniqueMatches(
       request,
@@ -118,7 +122,7 @@ export function requestContext(
   if (job.addressingMode) {
     sections.push(
       block("conversation_addressing_json", {
-        addressee: job.developerTask ? "Codex" : "MiniSago (迷你西米露)",
+        addressee: job.developerTask ? "Codex" : BOT_NAME,
         mode: job.addressingMode,
         ...addressingReferences(request),
       }),

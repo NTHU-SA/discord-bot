@@ -117,7 +117,7 @@ export const PROMPT_CASES: PromptCase[] = [
         messages: [
           message(
             "previous-answer",
-            "迷你西米露",
+            "NTHUSA Bot",
             "我找到她之前聊過的內容了",
             "assistant",
           ),
@@ -260,7 +260,7 @@ export const PROMPT_CASES: PromptCase[] = [
       messages: [
         message(
           "earlier",
-          "迷你西米露",
+          "NTHUSA Bot",
           "如果要免費開源的 Git GUI 可以先看 Gittyup",
           "assistant",
         ),
@@ -302,7 +302,7 @@ export const PROMPT_CASES: PromptCase[] = [
         messages: [
           message(
             "earlier-answer",
-            "迷你西米露",
+            "NTHUSA Bot",
             "這個伺服器目前沒有訂閱的服務只有 Daily TOEFL vocabulary",
             "assistant",
           ),
@@ -330,7 +330,7 @@ export const PROMPT_CASES: PromptCase[] = [
       ],
     },
     expectation: {
-      forbiddenReplyPatterns: [/\b(?:MiniSago|Sago)[’']s\b/iu, /迷你西米露的/u],
+      forbiddenReplyPatterns: [/\b(?:NTHUSA Bot)[’']s\b/iu, /NTHUSA Bot的/u],
     },
   },
   {
@@ -399,7 +399,7 @@ export const PROMPT_CASES: PromptCase[] = [
         message("failure-question", "Requester", "howwww"),
         message(
           "failed-answer",
-          "迷你西米露",
+          "NTHUSA Bot",
           "我這次沒完成 稍後再試一次",
           "assistant",
         ),
@@ -436,7 +436,7 @@ export const PROMPT_CASES: PromptCase[] = [
         message("action-request", "Requester", "今天晚上六點提醒我看排名"),
         message(
           "failed-answer",
-          "迷你西米露",
+          "NTHUSA Bot",
           "我剛剛沒有把提醒設好",
           "assistant",
         ),
@@ -456,7 +456,7 @@ export const PROMPT_CASES: PromptCase[] = [
       messages: [
         message(
           "failed-answer",
-          "迷你西米露",
+          "NTHUSA Bot",
           "我沒有把訊息送出去",
           "assistant",
         ),

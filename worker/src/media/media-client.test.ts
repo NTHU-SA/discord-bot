@@ -16,7 +16,7 @@ describe("host media client", () => {
           : new Response(new Uint8Array([1, 2]), {
               headers: {
                 "content-type": "image/png",
-                "x-minisago-filename": "avatar.png",
+                "x-nthusa-filename": "avatar.png",
               },
             });
       }) as typeof fetch,

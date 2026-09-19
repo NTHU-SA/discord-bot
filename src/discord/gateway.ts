@@ -1,3 +1,4 @@
+import { BOT_NAME } from "../../contracts/identity";
 import type { DiscordApplicationCommandInteraction } from "./interactions";
 import { handleCalendarConfirmation } from "../chatbot/calendar-confirmation";
 import {
@@ -29,7 +30,7 @@ import { getFeatureAvailabilityStore } from "./feature-availability";
 
 const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 const MESSAGE_CONTENT_LIMIT = 2_000;
-const SOCIAL_WEBHOOK_NAME = "MiniSago Social Links";
+const SOCIAL_WEBHOOK_NAME = `${BOT_NAME} Social Links`;
 const MAX_RECONNECT_DELAY_MS = 60_000;
 const GUILDS_INTENT = 1 << 0;
 const GUILD_MESSAGES_INTENT = 1 << 9;
@@ -188,7 +189,7 @@ function getGatewayCloseReason(code: number) {
   return "no specific reason mapped";
 }
 
-class InstagramGatewayClient {
+class DiscordGatewayClient {
   private ambientReactions: AmbientReactionController;
   private channelTasks = new ChannelTaskQueue();
   private conversations = new ChatbotConversationTracker();
@@ -228,7 +229,7 @@ class InstagramGatewayClient {
     this.stopped = true;
     this.clearHeartbeat();
     this.ambientReactions.stop();
-    this.socket?.close(1000, "MiniSago shutdown");
+    this.socket?.close(1000, "NTHUSA Bot shutdown");
   }
 
   private async openSocket(resume: boolean) {
@@ -711,14 +712,14 @@ class InstagramGatewayClient {
   }
 }
 
-export function startInstagramGateway() {
+export function startDiscordGateway() {
   const config = getInstagramGatewayConfig();
 
   if (!config) {
     return null;
   }
 
-  const client = new InstagramGatewayClient(config);
+  const client = new DiscordGatewayClient(config);
   client.connect();
 
   return client;
