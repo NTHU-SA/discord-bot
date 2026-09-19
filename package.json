@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "deploy": "bun scripts/deploy.mjs",
-    "release": "bun run deploy && bun run worker:update",
     "build": "tsc --noEmit",
     "start": "bun src/server.ts",
     "test": "bun test",
@@ -14,20 +13,11 @@
     "lint": "tsc --noEmit",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "fetch:vocab": "bun scripts/fetch-wiktionary-vocab.mjs",
-    "sync:install": "bun --env-file=.env.local scripts/sync-install-settings.mjs",
-    "mac-agent:install": "bun --env-file=.env.local scripts/worker.mjs install",
-    "mac-agent:status": "bun scripts/worker.mjs status",
-    "mac-agent:uninstall": "bun scripts/worker.mjs uninstall",
-    "worker:update": "bun run mac-agent:install"
+    "sync:install": "bun --env-file=.env.local scripts/sync-install-settings.mjs"
   },
   "dependencies": {
-    "@discordjs/voice": "0.19.2",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "@ozymandiasthegreat/vad": "2.0.7",
     "croner": "10.0.1",
-    "opusscript": "0.1.1",
-    "prism-media": "^1.3.5",
     "zod": "4.4.3"
   },
   "devDependencies": {

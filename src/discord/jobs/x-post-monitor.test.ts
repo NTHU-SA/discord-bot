@@ -67,46 +67,47 @@ describe("X post monitor", () => {
     ).toBe(false);
   });
 
-  test("includes additional Discord pipes with isolated state", () => {
+  test("has no personal feed defaults and groups configured destinations", () => {
+    expect(getXPostMonitorConfigs({ DISCORD_BOT_TOKEN: "test-token" })).toEqual(
+      [],
+    );
     const configs = getXPostMonitorConfigs({
       DISCORD_BOT_TOKEN: "test-token",
-      DISCORD_GUILD_ID: "guild-1",
-      X_POST_STATE_FILE: "/app/state/x-post-state.json",
+      X_POST_STATE_DIRECTORY: "/app/state/x-posts",
+      X_POST_FEEDS_JSON: JSON.stringify([
+        {
+          handle: "nthusa",
+          guildId: "123456789012345678",
+          channelId: "223456789012345678",
+        },
+        {
+          handle: "nthusa",
+          guildId: "123456789012345678",
+          channelId: "323456789012345678",
+        },
+      ]),
     });
+    expect(configs).toHaveLength(1);
+    expect(configs[0]!.destinations).toHaveLength(2);
+    expect(configs[0]!.stateFile).toBe("/app/state/x-posts/nthusa.json");
+    expect(configs[0]!.feedUrl).toBe(
+      "https://fxtwitter.com/nthusa/feed.xml?count=20",
+    );
+  });
 
-    expect(
-      configs.map(
-        ({ service, handle, feedUrl, stateFile, onlyAuthoredPosts }) => ({
-          service,
-          handle,
-          feedUrl,
-          stateFile,
-          onlyAuthoredPosts,
-        }),
-      ),
-    ).toEqual([
-      {
-        service: "x_posts_primary",
-        handle: "thsottiaux",
-        feedUrl: "https://fxtwitter.com/thsottiaux/feed.xml?count=20",
-        stateFile: "/app/state/x-post-state.json",
-        onlyAuthoredPosts: false,
-      },
-      {
-        service: "x_posts_thsottiaux",
-        handle: "thsottiaux",
-        feedUrl: "https://fxtwitter.com/thsottiaux/feed.xml?count=20",
-        stateFile: "/app/state/x-post-thsottiaux-additional-state.json",
-        onlyAuthoredPosts: false,
-      },
-      {
-        service: "x_posts_hololive_dreams",
-        handle: "hololive_dreams",
-        feedUrl: "https://fxtwitter.com/hololive_dreams/feed.xml?count=20",
-        stateFile: "/app/state/x-post-hololive-dreams-state.json",
-        onlyAuthoredPosts: true,
-      },
-    ]);
+  test("rejects unsafe feed handles and destinations", () => {
+    expect(() =>
+      getXPostMonitorConfigs({
+        DISCORD_BOT_TOKEN: "test-token",
+        X_POST_FEEDS_JSON: JSON.stringify([
+          {
+            handle: "../escape",
+            guildId: "123456789012345678",
+            channelId: "223456789012345678",
+          },
+        ]),
+      }),
+    ).toThrow();
   });
 
   test("checkpoints idle state no more than once per hour", () => {

@@ -1,4 +1,3 @@
-import { handleVoiceDebugRequest } from "./discord/voice-debug/http";
 import { handleCalendarPage } from "./chatbot/calendar-pages";
 import type { Server } from "bun";
 
@@ -13,15 +12,12 @@ import {
   handleChatbotMcpRequest,
   handleChatbotMediaRequest,
 } from "./chatbot/mcp";
-import { startGamerForumMonitor } from "./discord/jobs/gamer-forum-monitor";
 import { startDeploymentNotificationMonitor } from "./discord/jobs/deployment-notifications";
 import { startInstagramGateway } from "./discord/gateway";
 import {
   handleGithubWebhookRequest,
   isGithubWebhookConfigured,
 } from "./discord/jobs/github-pr-webhook";
-import { handleMediaAccessNotificationRequest } from "./discord/jobs/media-access-notifications";
-import { startToeflVocabScheduler } from "./discord/jobs/toefl-vocab";
 import { startXPostMonitor } from "./discord/jobs/x-post-monitor";
 import {
   configureChatbotReminderScheduler,
@@ -66,13 +62,6 @@ function handleRequest(request: Request, server: Server<MacAgentSocketData>) {
   const calendarPage = handleCalendarPage(request);
   if (calendarPage) return calendarPage;
 
-  if (
-    pathname === "/voice-debug" ||
-    pathname.startsWith("/voice-debug/") ||
-    pathname.startsWith("/api/voice-debug/")
-  )
-    return handleVoiceDebugRequest(request);
-
   if (request.method === "GET" && pathname === "/api/mac-agent/ws") {
     return macAgentBridge.handleUpgrade(request, server);
   }
@@ -91,13 +80,6 @@ function handleRequest(request: Request, server: Server<MacAgentSocketData>) {
 
   if (request.method === "POST" && pathname === "/api/github/webhook") {
     return handleGithubWebhookRequest(request);
-  }
-
-  if (
-    request.method === "POST" &&
-    pathname === "/api/internal/media-access-request"
-  ) {
-    return handleMediaAccessNotificationRequest(request);
   }
 
   return new Response("找不到此頁面", { status: 404 });
@@ -136,9 +118,6 @@ if (reminderBotToken) {
 if (process.env.DISCORD_GATEWAY_DISABLED !== "true") {
   startInstagramGateway();
 }
-
-startToeflVocabScheduler();
-startGamerForumMonitor();
 startXPostMonitor();
 startDeploymentNotificationMonitor();
 

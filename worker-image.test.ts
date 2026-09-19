@@ -45,7 +45,7 @@ test("worker image includes a minimal Python runtime", () => {
   expect(dockerfile).toContain("NUMBA_CACHE_DIR=/opt/minisago-numba-cache");
   expect(dockerfile).toContain("remove(Image.new");
   expect(sandboxRequirements.trim()).toBe(
-    "opencv-python-headless==5.0.0.93\nrembg[cpu]==2.0.76",
+    "opencv-python-headless==5.0.0.93\nrembg[cpu]==2.0.76\npypdf==6.19.0\npython-docx==1.2.0\nopenpyxl==3.1.5",
   );
   expect(pythonRuntime).toContain(
     'PYTHON = "/opt/minisago-python/bin/python3"',
@@ -82,11 +82,9 @@ test("hosted image includes Git for local server-memory history", () => {
   expect(hostedDockerfile).toContain("RUN apk add --no-cache git");
 });
 
-test("hosted image bundles local speech tools", () => {
-  expect(hostedDockerfile).toContain("RUN apk add --no-cache ffmpeg libstdc++");
-  expect(hostedDockerfile).toContain("/usr/local/bin/whisper-server");
-  expect(hostedDockerfile).toContain("/opt/minisago-models/ggml-small.bin");
-  expect(hostedDockerfile).toContain("WHISPER_MODEL_SHA256");
+test("hosted image contains no voice models or services", () => {
+  expect(hostedDockerfile).not.toContain("whisper");
+  expect(hostedDockerfile).not.toContain("speech-builder");
 });
 
 test("generic Python runs behind a private container boundary", () => {

@@ -127,132 +127,6 @@ async function connect(token: string) {
 }
 
 describe("MiniSago MCP server", () => {
-  test("lets the owner inspect and change persisted feature coverage", async () => {
-    const configured: unknown[] = [];
-    const policy = {
-      defaultEnabled: false,
-      rules: [],
-    };
-    const session = registerChatbotMcpSession({
-      ...handlers(),
-      listFeatureAvailability: () => ({
-        version: 1 as const,
-        features: {
-          chatbot: policy,
-          ambient_reactions: policy,
-          trip_planner: policy,
-        },
-      }),
-      configureFeatureAvailability: async (input) => {
-        configured.push(input);
-        return {
-          defaultEnabled: false,
-          rules: [
-            {
-              scope: input.scope,
-              targetId: input.targetId,
-              enabled: input.action === "enable",
-            },
-          ],
-        };
-      },
-    });
-    const client = await connect(session.token);
-
-    const tools = await client.listTools();
-    expect(tools.tools.map((tool) => tool.name)).toContain(
-      "configure_feature_availability",
-    );
-    const result = await client.callTool({
-      name: "configure_feature_availability",
-      arguments: {
-        feature: "trip_planner",
-        scope: "channel",
-        targetId: "1517766866964316201",
-        action: "enable",
-      },
-    });
-
-    expect(configured).toEqual([
-      {
-        feature: "trip_planner",
-        scope: "channel",
-        targetId: "1517766866964316201",
-        action: "enable",
-      },
-    ]);
-    expect(result.structuredContent).toMatchObject({
-      status: "complete",
-      feature: "trip_planner",
-    });
-
-    await client.close();
-    session.revoke();
-  });
-
-  test("lists and changes background service destinations", async () => {
-    const configured: unknown[] = [];
-    const listing = {
-      services: [
-        {
-          id: "gamer_forum" as const,
-          name: "Gamer forum reposts",
-          destinations: [
-            {
-              guildId: "1282936453134815275",
-              channelId: "1518127531968958558",
-              channelMention: "<#1518127531968958558>",
-              jumpUrl:
-                "https://discord.com/channels/1282936453134815275/1518127531968958558",
-            },
-          ],
-        },
-      ],
-    };
-    const session = registerChatbotMcpSession({
-      ...handlers(),
-      listManagedServices: () => listing,
-      configureServiceSubscription: async (input) => {
-        configured.push(input);
-        return listing;
-      },
-    });
-    const client = await connect(session.token);
-
-    const listed = await client.callTool({
-      name: "list_managed_services",
-      arguments: {},
-    });
-    expect(listed.structuredContent).toMatchObject({
-      status: "complete",
-      services: [
-        {
-          id: "gamer_forum",
-          destinations: [{ channelMention: "<#1518127531968958558>" }],
-        },
-      ],
-    });
-
-    await client.callTool({
-      name: "configure_service_subscription",
-      arguments: {
-        service: "gamer_forum",
-        action: "subscribe",
-        channelId: "1517766866964316201",
-      },
-    });
-    expect(configured).toEqual([
-      {
-        service: "gamer_forum",
-        action: "subscribe",
-        channelId: "1517766866964316201",
-      },
-    ]);
-
-    await client.close();
-    session.revoke();
-  });
-
   test("budgets resolved history and search with explicit omissions", () => {
     const messages = Array.from({ length: 30 }, (_, index) => ({
       id: String(index),
@@ -427,73 +301,6 @@ describe("MiniSago MCP server", () => {
     session.revoke();
   });
 
-  test("exposes host-bound trip read and edit tools", async () => {
-    const edits: unknown[] = [];
-    const session = registerChatbotMcpSession({
-      ...handlers(),
-      readTripPlan: async (input) => ({ status: "complete", input }),
-      editTripPlan: async (input) => {
-        edits.push(input);
-        return { status: "complete", action: input.action };
-      },
-    });
-    const client = await connect(session.token);
-    const tools = await client.listTools();
-
-    expect(tools.tools.map((tool) => tool.name)).toContain("read_trip_plan");
-    expect(tools.tools.map((tool) => tool.name)).toContain("edit_trip_plan");
-    expect(
-      tools.tools.find((tool) => tool.name === "edit_trip_plan")?.inputSchema,
-    ).toMatchObject({
-      properties: {
-        kind: {
-          enum: [
-            "arrival",
-            "departure",
-            "stay",
-            "place",
-            "food",
-            "transit",
-            "concert",
-            "friend",
-            "open",
-          ],
-        },
-      },
-    });
-    expect(
-      tools.tools.find((tool) => tool.name === "read_trip_plan")?.description,
-    ).toContain("all complete variants");
-    const read = await client.callTool({
-      name: "read_trip_plan",
-      arguments: { date: "2026-11-01" },
-    });
-    expect(read.structuredContent).toMatchObject({
-      status: "complete",
-      input: { date: "2026-11-01" },
-    });
-    await client.callTool({
-      name: "edit_trip_plan",
-      arguments: {
-        action: "update_day",
-        planId: "balanced",
-        date: "2026-11-01",
-        summary: "Updated",
-      },
-    });
-    expect(edits).toEqual([
-      {
-        action: "update_day",
-        planId: "balanced",
-        date: "2026-11-01",
-        summary: "Updated",
-      },
-    ]);
-
-    await client.close();
-    session.revoke();
-  });
-
   test("returns the request capability catalog with the session", () => {
     const session = registerChatbotMcpSession({
       ...handlers(),
@@ -506,12 +313,6 @@ describe("MiniSago MCP server", () => {
           condition: "The owner must make an explicit repository request.",
         },
       ],
-      sendChannelMessage: async () => ({
-        id: "message-1",
-        channelId: "channel-1",
-        guildId: "guild-1",
-        jumpUrl: "https://discord.com/channels/guild-1/channel-1/message-1",
-      }),
     });
 
     expect(session.capabilities).toMatchObject([
@@ -522,10 +323,6 @@ describe("MiniSago MCP server", () => {
       {
         id: "discord_context",
         tools: ["resolve_context"],
-      },
-      {
-        id: "channel_messaging",
-        tools: ["send_channel_message"],
       },
     ]);
     expect(JSON.stringify(session.capabilities)).not.toContain(
@@ -790,101 +587,6 @@ describe("MiniSago MCP server", () => {
         guild: "Target",
       },
     ]);
-
-    await client.close();
-    session.revoke();
-  });
-
-  test("exposes host-bound voice channel actions", async () => {
-    let joined = 0;
-    let left = 0;
-    const session = registerChatbotMcpSession({
-      ...handlers(),
-      joinVoiceChannel: () => {
-        joined += 1;
-        return { status: "joined" as const, channelId: "voice-1" };
-      },
-      leaveVoiceChannel: () => {
-        left += 1;
-        return { status: "left" as const };
-      },
-    });
-    const client = await connect(session.token);
-    const tools = await client.listTools();
-
-    expect(tools.tools.map((tool) => tool.name)).toContain(
-      "join_voice_channel",
-    );
-    expect(tools.tools.map((tool) => tool.name)).toContain(
-      "leave_voice_channel",
-    );
-
-    const joinResult = await client.callTool({
-      name: "join_voice_channel",
-      arguments: {},
-    });
-    expect(joinResult.structuredContent).toEqual({
-      status: "complete",
-      action: "joined",
-      channelId: "voice-1",
-    });
-
-    const leaveResult = await client.callTool({
-      name: "leave_voice_channel",
-      arguments: {},
-    });
-    expect(leaveResult.structuredContent).toEqual({
-      status: "complete",
-      action: "left",
-    });
-    expect({ joined, left }).toEqual({ joined: 1, left: 1 });
-
-    await client.close();
-    session.revoke();
-  });
-
-  test("exposes the owner-bound channel messaging action", async () => {
-    const sent: unknown[] = [];
-    const session = registerChatbotMcpSession({
-      ...handlers(),
-      sendChannelMessage: async (input) => {
-        sent.push(input);
-        return {
-          id: "234567890123456789",
-          channelId: "123456789012345678",
-          channelName: "general",
-          guildId: "987654321098765432",
-          guildName: "Sago Club",
-          jumpUrl:
-            "https://discord.com/channels/987654321098765432/123456789012345678/234567890123456789",
-        };
-      },
-    });
-    const client = await connect(session.token);
-
-    const result = await client.callTool({
-      name: "send_channel_message",
-      arguments: {
-        server: "Sago Club",
-        channel: "general",
-        content: "hello club",
-      },
-    });
-
-    expect(sent).toEqual([
-      {
-        server: "Sago Club",
-        channel: "general",
-        content: "hello club",
-      },
-    ]);
-    expect(result.structuredContent).toMatchObject({
-      status: "complete",
-      message: {
-        id: "234567890123456789",
-        channelName: "general",
-      },
-    });
 
     await client.close();
     session.revoke();

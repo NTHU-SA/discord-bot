@@ -1,3 +1,4 @@
+import type { DiscordApplicationCommandInteraction } from "./interactions";
 import { handleCalendarConfirmation } from "../chatbot/calendar-confirmation";
 import {
   getInstagramReplyUrls,
@@ -12,20 +13,8 @@ import {
   ChatbotConversationTracker,
   handleChatbotMention,
 } from "../chatbot/chatbot";
-import {
-  prewarmVoiceChatSpeech,
-  respondToVoiceChat,
-} from "../chatbot/voice-chat";
 import { createDiscordRequest, type DiscordRequest } from "./api/request";
-import {
-  createEphemeralInteractionResponder,
-  deferEphemeralInteraction,
-  getAskPrompt,
-  toInteractionMessage,
-  type DiscordApplicationCommandInteraction,
-} from "./interactions";
 import { ChannelQuietTracker } from "./channel-quiet";
-import { transcribeSpeech } from "./local-speech";
 import {
   getChatbotAccessConfig,
   type ChatbotAccessConfig,
@@ -36,21 +25,6 @@ import {
   type AmbientReactionPolicy,
 } from "./social/social-reactions";
 import { DiscordReactionBroker } from "./api/reactions";
-import {
-  QuickReplyNudgeTracker,
-  QUICK_REPLY_TARGET_USER_ID,
-} from "./quick-reply-nudge";
-import {
-  buildVoiceStateUpdate,
-  registerVoiceGateway,
-  VoiceStateTracker,
-  type DiscordVoiceState,
-  type JoinVoiceChannelResult,
-  type LeaveVoiceChannelResult,
-  type VoiceGateway,
-} from "./api/voice";
-import { DiscordVoiceChat, type DiscordVoiceChatOptions } from "./voice-chat";
-import type { DiscordGatewayAdapterLibraryMethods } from "@discordjs/voice";
 import { getFeatureAvailabilityStore } from "./feature-availability";
 
 const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
@@ -58,9 +32,7 @@ const MESSAGE_CONTENT_LIMIT = 2_000;
 const SOCIAL_WEBHOOK_NAME = "MiniSago Social Links";
 const MAX_RECONNECT_DELAY_MS = 60_000;
 const GUILDS_INTENT = 1 << 0;
-const GUILD_VOICE_STATES_INTENT = 1 << 7;
 const GUILD_MESSAGES_INTENT = 1 << 9;
-const DIRECT_MESSAGES_INTENT = 1 << 12;
 const MESSAGE_CONTENT_INTENT = 1 << 15;
 
 type GatewayPayload = {
@@ -80,15 +52,6 @@ type GatewayReady = {
   user?: {
     id?: string;
   };
-};
-
-type GatewayGuildCreate = {
-  id: string;
-  voice_states?: DiscordVoiceState[];
-};
-
-type DiscordVoiceServerUpdate = {
-  guild_id: string;
 };
 
 type DiscordUser = {
@@ -225,12 +188,11 @@ function getGatewayCloseReason(code: number) {
   return "no specific reason mapped";
 }
 
-class InstagramGatewayClient implements VoiceGateway {
+class InstagramGatewayClient {
   private ambientReactions: AmbientReactionController;
   private channelTasks = new ChannelTaskQueue();
   private conversations = new ChatbotConversationTracker();
   private quietChannels = new ChannelQuietTracker();
-  private quickReplyNudges = new QuickReplyNudgeTracker();
   private heartbeatAcked = true;
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   private reconnectAttempts = 0;
@@ -240,13 +202,7 @@ class InstagramGatewayClient implements VoiceGateway {
   private socket: WebSocket | null = null;
   private stopped = false;
   private botUserId: string | null = null;
-  private voiceChat: DiscordVoiceChat;
-  private voiceAdapters = new Map<
-    string,
-    DiscordGatewayAdapterLibraryMethods
-  >();
   private reactionBroker: DiscordReactionBroker;
-  private voiceStates = new VoiceStateTracker();
   private socialWebhookDestinations = new Map<
     string,
     { webhookChannelId: string; threadId?: string }
@@ -262,23 +218,6 @@ class InstagramGatewayClient implements VoiceGateway {
       policy: config.ambientReactionPolicy,
       reactionBroker: this.reactionBroker,
     });
-    const voiceOptions: DiscordVoiceChatOptions = {
-      adapterCreator: (guildId) => (methods) => {
-        this.voiceAdapters.set(guildId, methods);
-        return {
-          sendPayload: (payload) => this.sendVoicePayload(payload),
-          destroy: () => {
-            if (this.voiceAdapters.get(guildId) === methods) {
-              this.voiceAdapters.delete(guildId);
-            }
-          },
-        };
-      },
-      getBotUserId: () => this.botUserId,
-      transcribe: transcribeSpeech,
-      respond: respondToVoiceChat,
-    };
-    this.voiceChat = new DiscordVoiceChat(voiceOptions);
   }
 
   connect() {
@@ -289,38 +228,7 @@ class InstagramGatewayClient implements VoiceGateway {
     this.stopped = true;
     this.clearHeartbeat();
     this.ambientReactions.stop();
-    this.voiceChat.destroy();
     this.socket?.close(1000, "MiniSago shutdown");
-    registerVoiceGateway(null);
-  }
-
-  joinMemberVoiceChannel(
-    guildId: string,
-    userId: string,
-  ): JoinVoiceChannelResult {
-    if (this.socket?.readyState !== WebSocket.OPEN || !this.botUserId) {
-      return { status: "gateway_unavailable" };
-    }
-
-    const channelId = this.voiceStates.getChannelId(guildId, userId);
-
-    if (!channelId) {
-      return { status: "member_not_in_voice" };
-    }
-
-    return this.voiceChat.join(guildId, channelId);
-  }
-
-  leaveVoiceChannel(guildId: string): LeaveVoiceChannelResult {
-    if (this.voiceChat.leave(guildId)) {
-      return { status: "left" };
-    }
-
-    if (!this.updateVoiceState(guildId, null)) {
-      return { status: "gateway_unavailable" };
-    }
-
-    return { status: "left" };
   }
 
   private async openSocket(resume: boolean) {
@@ -399,33 +307,9 @@ class InstagramGatewayClient implements VoiceGateway {
       return;
     }
 
-    if (payload.t === "GUILD_CREATE") {
-      const guild = payload.d as GatewayGuildCreate;
-      this.voiceStates.replaceGuild(guild.id, guild.voice_states ?? []);
-      return;
-    }
-
-    if (payload.t === "VOICE_STATE_UPDATE") {
-      const voiceState = payload.d as DiscordVoiceState;
-      this.voiceStates.observe(voiceState);
-      if (voiceState.user_id === this.botUserId && voiceState.guild_id) {
-        this.voiceAdapters
-          .get(voiceState.guild_id)
-          ?.onVoiceStateUpdate(payload.d as never);
-      }
-      return;
-    }
-
-    if (payload.t === "VOICE_SERVER_UPDATE") {
-      const voiceServer = payload.d as DiscordVoiceServerUpdate;
-      this.voiceAdapters
-        .get(voiceServer.guild_id)
-        ?.onVoiceServerUpdate(payload.d as never);
-      return;
-    }
-
     if (payload.t === "MESSAGE_CREATE") {
       const message = payload.d as DiscordMessageCreate;
+      if (!message.guild_id) return;
       const receivedSequence = this.conversations.recordMessage();
       await this.channelTasks.run(message.channel_id, () =>
         this.handleMessageCreate(message, receivedSequence),
@@ -452,58 +336,6 @@ class InstagramGatewayClient implements VoiceGateway {
       );
       return;
     }
-    const prompt = getAskPrompt(interaction);
-    if (!prompt || !interaction.channel_id) return;
-
-    const discordRequest = createDiscordRequest(this.config.botToken);
-    try {
-      await deferEphemeralInteraction(interaction, discordRequest);
-    } catch (error) {
-      console.error(
-        `Failed to defer /ask interaction ${interaction.id}:`,
-        error,
-      );
-      return;
-    }
-
-    const baseRespond = createEphemeralInteractionResponder(
-      interaction,
-      discordRequest,
-    );
-    let responseAttempted = false;
-    const respond: typeof baseRespond = (...args) => {
-      responseAttempted = true;
-      return baseRespond(...args);
-    };
-    void handleChatbotMention({
-      message: toInteractionMessage(interaction, prompt),
-      botUserId: interaction.application_id,
-      discordRequest,
-      accessConfig: this.config.chatbotAccess,
-      invocation: {
-        request: prompt,
-        addressingMode: "mention",
-        chatOnly: true,
-        recentContext: true,
-        silent: true,
-        respond,
-      },
-      featureAvailability: this.featureAvailability,
-    })
-      .then(async (handled) => {
-        if (!handled) {
-          await respond("我剛剛卡住了 晚點再叫我一次");
-        }
-      })
-      .catch(async (error) => {
-        console.error(
-          `Failed to handle /ask interaction ${interaction.id}:`,
-          error,
-        );
-        if (!responseAttempted) {
-          await respond("我剛剛卡住了 晚點再叫我一次").catch(() => undefined);
-        }
-      });
   }
 
   private handleHello(hello: GatewayHello) {
@@ -553,12 +385,7 @@ class InstagramGatewayClient implements VoiceGateway {
       op: 2,
       d: {
         token: this.config.botToken,
-        intents:
-          GUILDS_INTENT |
-          GUILD_VOICE_STATES_INTENT |
-          GUILD_MESSAGES_INTENT |
-          DIRECT_MESSAGES_INTENT |
-          MESSAGE_CONTENT_INTENT,
+        intents: GUILDS_INTENT | GUILD_MESSAGES_INTENT | MESSAGE_CONTENT_INTENT,
         properties: {
           os: process.platform,
           browser: "minisago",
@@ -570,7 +397,7 @@ class InstagramGatewayClient implements VoiceGateway {
             {
               name: "Custom Status",
               type: 4,
-              state: "標我才會讀訊息",
+              state: "在伺服器標註我來提問",
             },
           ],
           status: "online",
@@ -597,24 +424,6 @@ class InstagramGatewayClient implements VoiceGateway {
     }
 
     this.socket.send(JSON.stringify(payload));
-  }
-
-  private sendVoicePayload(payload: unknown) {
-    if (this.socket?.readyState !== WebSocket.OPEN || !this.botUserId) {
-      return false;
-    }
-
-    this.socket.send(JSON.stringify(payload));
-    return true;
-  }
-
-  private updateVoiceState(guildId: string, channelId: string | null) {
-    if (this.socket?.readyState !== WebSocket.OPEN || !this.botUserId) {
-      return false;
-    }
-
-    this.send(buildVoiceStateUpdate(guildId, channelId));
-    return true;
   }
 
   private async handleInvalidSession(canResume: boolean) {
@@ -650,25 +459,6 @@ class InstagramGatewayClient implements VoiceGateway {
     message: DiscordMessageCreate,
     receivedSequence: number,
   ) {
-    const shouldNudgeQuickReply =
-      !this.quietChannels.isPaused(message.channel_id) &&
-      this.quickReplyNudges.observe(message);
-
-    if (shouldNudgeQuickReply) {
-      try {
-        await this.replyToMessage(
-          message,
-          `<@${QUICK_REPLY_TARGET_USER_ID}> 今天已經秒回超過三次了 去做點有意義的事啦`,
-          [QUICK_REPLY_TARGET_USER_ID],
-        );
-      } catch (error) {
-        console.error(
-          `Failed to send quick reply nudge for ${message.id}:`,
-          error,
-        );
-      }
-    }
-
     if (this.botUserId) {
       try {
         const handled = await handleChatbotMention({
@@ -929,9 +719,7 @@ export function startInstagramGateway() {
   }
 
   const client = new InstagramGatewayClient(config);
-  registerVoiceGateway(client);
   client.connect();
-  void prewarmVoiceChatSpeech();
 
   return client;
 }
