@@ -375,7 +375,12 @@ const EXECUTION_ROUTE_FORBIDDEN_FIELDS = ANSWER_ONLY_FIELDS.filter(
 );
 
 export function parseChatbotJob(value: unknown): ChatbotJob | null {
-  if (!isRecord(value) || !hasCommonJobFields(value)) return null;
+  if (
+    !isRecord(value) ||
+    !hasCommonJobFields(value) ||
+    value.streamReply !== undefined
+  )
+    return null;
 
   if (value.purpose === "execution_route") {
     if (
