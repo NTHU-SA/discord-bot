@@ -60,7 +60,33 @@ The webhook is disabled unless token, secret, repository list, and destination c
 
 `MINISAGO_GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` stays in the core; set `MINISAGO_GOOGLE_DRIVE_ACCESS=roles` to enable it. The approved drives, current term, guild, and Google-group/Discord-role bindings are checked-in NTHUSA settings. Review them with the association before activation. Access is evaluated for the requester; the owner has no Drive-role bypass.
 
-`MINISAGO_GOOGLE_CALENDAR_OAUTH_JSON` contains `client_id`, `client_secret`, and `refresh_token` for the designated booking account. It supports confirmed guest invitations. `MINISAGO_GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON` is an alternative without invitations when OAuth is absent. Store compact JSON in a single quoted dotenv value, preserving JSON `\n` escapes in private keys. Do not put credentials in the worker file. See [hosting](nthusa-hosting.md#6-enable-the-retained-integrations) for fixed account/project bindings and authorization.
+### Calendar and invitation directory
+
+Use a dedicated secondary calendar named **discord-calendar** for events. Office use is an optional invitation to the separate 學生會辦空間登記 calendar, which the tools only read. Configure these values in the core's `.env.production`:
+
+| Variable                          | Purpose / default                                                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `DISCORD_CALENDAR_ID`             | Required events calendar ID; must differ from the office ID. Missing/invalid settings disable Calendar tools.        |
+| `DISCORD_CALENDAR_NAME`           | Confirmation label; `discord-calendar`.                                                                              |
+| `DISCORD_OFFICE_CALENDAR_ID`      | Read-only office calendar and optional invitation recipient; existing 學生會辦空間登記 ID in the examples.           |
+| `DISCORD_CALENDAR_GUILD_ID`       | Allowed guild; `1514899496797212683`.                                                                                |
+| `DISCORD_CALENDAR_ACCOUNT`        | Verified OAuth user; `nthusa@gapp.nthu.edu.tw`.                                                                      |
+| `DISCORD_CALENDAR_OAUTH_JSON`     | Compact `client_id`, `client_secret`, `refresh_token` JSON. Legacy `MINISAGO_GOOGLE_CALENDAR_OAUTH_JSON` also works. |
+| `DISCORD_CALENDAR_DRAFTS_FILE`    | Optional override of `MINISAGO_CALENDAR_DRAFTS_FILE`; keep persistent core storage.                                  |
+| `DISCORD_CONTACTS_SPREADSHEET_ID` | Directory spreadsheet; defaults to the ID in the examples.                                                           |
+| `DISCORD_CONTACTS_SHEET_ID`       | Directory CSV tab; `817689538`.                                                                                      |
+
+Store credential JSON in a single quoted dotenv value, preserving JSON `\n` escapes in private keys. Keep it only in the core and the association's recovery vault. Malformed OAuth fails closed. The legacy service-account mode supports events without guest invitations. See [hosting](nthusa-hosting.md#6-enable-the-retained-integrations) for authorization and activation.
+
+`list_calendar_events` and `get_calendar_event` select `calendar=events` or `calendar=office`; arbitrary calendar IDs are not accepted. `create_calendar_event`, `edit_calendar_event`, and `delete_calendar_event` write only to the dedicated events calendar. Each posts an immutable preview for the requester to confirm in the same guild/channel. Drafts expire after 15 minutes and bind to the calendar/account/guild configuration. Guests receive invitations, updates, or cancellations only after confirmation.
+
+Set `useOffice=true` only when the request needs the office. Creation otherwise makes no office request. The tool checks conflicts before adding the office invitation; Google auto-accept must be configured for non-conflicting invitations. Only `officeReservation=accepted` means booked; `pending` requires a later read, and `declined` needs another time or venue. Google propagation is asynchronous. On edits, omitted `useOffice` preserves the invitation, and `false` removes it when moving elsewhere. The tools never modify the office copy directly.
+
+People and office use are separate. `attendees` replaces the people list, so adding someone to an existing event requires reading it and appending the selected address to existing people. Omission preserves guests; `[]` removes people while preserving office use. Edits/deletion require the latest etag. Whole recurring-series changes are unsupported; select one occurrence. Times use Asia/Taipei; all-day end dates are exclusive.
+
+`lookup_calendar_contacts` uses the existing Drive service account and `drive.readonly` scope with Google Sheets API enabled. It reads only the configured CSV tab's A:H identity/email columns, never Notes/Phone. Up to ten matching names, aliases, organization and email addresses are returned; ambiguous results require requester selection. Lookup sends no invitations. Fresh requester roles and file permissions govern access, and the file's approved-drive location and ACL are checked again before returning matches. Keep the 學權部 drive exclusion.
+
+When moving from the MiniSago trial, restore association-approved credentials and calendar IDs from the recovery vault into this deployment's own configuration. Existing Google events stay in place. Keep one bot responsible for mutations during cutover and recreate old pending previews; do not copy another deployment's whole environment or state volume.
 
 ## Worker and host
 

@@ -11,18 +11,18 @@ const frame = (title: string, content: string) => `<!doctype html>
 const home = frame(
   "Calendar bookings",
   `
-<h1>Office bookings through ${htmlBotName}</h1>
-<p>discord-calendar connects ${htmlBotName} in the NTHUSA Discord server to the shared 學生會辦空間登記 Google Calendar.</p>
-<p>Members can ask about availability, prepare a booking, change a meeting time, and invite people by email. ${htmlBotName} shows the booking details and guest list for the requester to confirm before saving changes or requesting invitation notifications.</p>
+<h1>Events and office bookings through ${htmlBotName}</h1>
+<p>discord-calendar connects ${htmlBotName} in the NTHUSA Discord server to a dedicated events calendar. Office use is requested by inviting the separate 學生會辦空間登記 calendar.</p>
+<p>Members can ask about availability, prepare an event, change a meeting time, cancel an event, and find selected invitees in the association contact directory. ${htmlBotName} shows the booking details and guest list for the requester to confirm before saving changes or requesting invitation notifications.</p>
 <p>Calendar access is authorized by the designated booking account. This integration is operated for the association and does not offer public Google account registration.</p>
-<h2>Using the calendar</h2><p>Ask ${htmlBotName} in the association’s Discord server, for example: 「下禮拜有人要用會辦嗎？」 For a booking, provide the date, time, location, and any guest email addresses. Review the preview and choose Confirm or Cancel. Google Calendar allows overlapping events, so check availability before booking.</p>`,
+<h2>Using the calendar</h2><p>Ask ${htmlBotName} in the association’s Discord server, for example: 「下禮拜有人要用會辦嗎？」 For a booking, provide the date, time, location, and any guest email addresses. Review the preview and choose Confirm or Cancel. Events at other locations do not invite the office. Office requests check conflicts and are confirmed only when the office calendar accepts the invitation.</p>`,
 );
 
 const privacy = frame(
   "Privacy policy",
   `
-<h1>Calendar integration privacy policy</h1><p>Effective September 19, 2026. This policy covers the discord-calendar integration in ${htmlBotName}.</p>
-<h2>Data used</h2><p>The integration verifies the authorized Google account’s email address and accesses event titles, descriptions, times, locations, event identifiers, and guest email addresses and RSVP status in the designated shared calendar. It uses this information to answer calendar questions, prepare bookings, update events, and request invitations after confirmation.</p>
+<h1>Calendar integration privacy policy</h1><p>Effective September 20, 2026. This policy covers the discord-calendar integration in ${htmlBotName}.</p>
+<h2>Data used</h2><p>The integration verifies the authorized Google account’s email address and accesses event titles, descriptions, times, locations, event identifiers, and guest email addresses and RSVP status in the designated event and office calendars. It also reads names, aliases, organization and email addresses from the designated contact directory to match requested invitees; the lookup does not fetch phone numbers or notes. It uses this information to answer calendar questions, prepare bookings, update or delete events, and request invitations or cancellations after confirmation.</p>
 <h2>Where information goes</h2><p>Relevant calendar and conversation information is processed by ${htmlBotName} and its AI provider, OpenAI, to respond to requests. Booking previews and answers appear in the Discord channel where the request was made and are visible to people with access to that channel. Google receives confirmed changes and sends event information to the selected guests. The integration does not sell calendar information or use it for advertising.</p>
 <h2>Credentials and storage</h2><p>Google OAuth credentials are stored on the operator’s server, with recovery copies managed by the association’s operators. Credentials are not provided to the AI worker or posted in Discord. Pending booking drafts expire after 15 minutes and are removed during subsequent draft activity. Calendar events and Discord messages remain in their respective services until removed. Related request details may also remain in operational traces and configured backups; worker debug traces are retained for up to 14 days.</p>
 <h2>Control and removal</h2><p>The authorized account can revoke access from <a href="https://myaccount.google.com/connections">Google Account connections</a>. Calendar administrators can change sharing permissions or remove events in Google Calendar. Contact <a href="mailto:admin@nthusa.tw">admin@nthusa.tw</a> to request assistance with access, correction, or removal of integration data and recovery copies.</p>`,
