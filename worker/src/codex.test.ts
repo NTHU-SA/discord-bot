@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import type { ChatbotAccessConfig } from "../../src/chatbot/access";
 import type {
@@ -39,6 +39,7 @@ import {
   OWNER_ROUTER_PROFILE,
   parseFinalResponse,
   progressForCodexEvent,
+  runCodexJob,
   SOCIAL_ACTION_OUTPUT_SCHEMA,
   SOCIAL_ACTION_PROFILE,
   CALENDAR_CREATE_MCP_APPROVAL_CONFIG,
@@ -183,6 +184,55 @@ describe("Codex chatbot runner", () => {
     expect(CALENDAR_EDIT_MCP_APPROVAL_CONFIG).toBe(
       'mcp_servers.minisago.tools.edit_calendar_event.approval_mode="approve"',
     );
+  });
+
+  test("community jobs launch with valid config and all Calendar previews enabled", async () => {
+    const reply = JSON.stringify({ reply: "Please review the event preview." });
+    let command: string[] = [];
+    const spawn = spyOn(Bun, "spawn").mockImplementation((...args: any[]) => {
+      command = args[0];
+      return {
+        stdin: { write() {}, end() {} },
+        stdout: new Response(
+          JSON.stringify({
+            type: "item.completed",
+            item: { type: "agent_message", text: reply },
+          }) + "\n",
+        ).body,
+        stderr: new Response("").body,
+        exited: Promise.resolve(0),
+        kill() {},
+      } as any;
+    });
+    try {
+      const result = await runCodexJob(job, {
+        codexHome: "/unused/codex-home",
+        codexPath: "/usr/bin/codex-test",
+        githubConfigDir: "/unused/github",
+        githubRepositories: [],
+        githubWorktreeRoot: "/unused/worktrees",
+        mcpUrl: "http://127.0.0.1:1/mcp",
+        sandboxUrl: "http://127.0.0.1:1/sandbox",
+        workspaceRoot: "/unused/workspace",
+        chatbotAccess: ACCESS_CONFIG,
+      });
+      expect(JSON.parse(result.content)).toEqual(JSON.parse(reply));
+      const overrides = command.flatMap((arg, index) =>
+        arg === "--config" ? [command[index + 1]!] : [],
+      );
+      const config = Bun.TOML.parse(overrides.join("\n")) as any;
+      expect(config.mcp_servers.minisago.default_tools_approval_mode).toBe(
+        "auto",
+      );
+      for (const action of ["create", "edit", "delete"]) {
+        expect(
+          config.mcp_servers.minisago.tools[`${action}_calendar_event`]
+            .approval_mode,
+        ).toBe("approve");
+      }
+    } finally {
+      spawn.mockRestore();
+    }
   });
 
   test("pre-approves all request-scoped MCP tools for the owner", () => {

@@ -63,6 +63,8 @@ export const CALENDAR_CREATE_MCP_APPROVAL_CONFIG =
   'mcp_servers.minisago.tools.create_calendar_event.approval_mode="approve"';
 export const CALENDAR_EDIT_MCP_APPROVAL_CONFIG =
   'mcp_servers.minisago.tools.edit_calendar_event.approval_mode="approve"';
+export const CALENDAR_DELETE_MCP_APPROVAL_CONFIG =
+  'mcp_servers.minisago.tools.delete_calendar_event.approval_mode="approve"';
 export const CHAT_LOCAL_TOOLS_CONFIG = "features.shell_tool=false";
 
 export function minisagoMcpApprovalMode(
@@ -848,15 +850,15 @@ export async function runCodexJob(job: CodexJob, options: CodexRunOptions) {
         "--config",
         EMOJI_RENAME_MCP_APPROVAL_CONFIG,
         "--config",
-        "--config",
         SERVER_MEMORY_MCP_APPROVAL_CONFIG,
         "--config",
         CHANNEL_QUIET_MCP_APPROVAL_CONFIG,
         "--config",
-        "--config",
         CALENDAR_CREATE_MCP_APPROVAL_CONFIG,
         "--config",
         CALENDAR_EDIT_MCP_APPROVAL_CONFIG,
+        "--config",
+        CALENDAR_DELETE_MCP_APPROVAL_CONFIG,
         "--config",
         "mcp_servers.minisago.startup_timeout_sec=10",
         "--config",
